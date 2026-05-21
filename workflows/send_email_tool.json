@@ -6,7 +6,10 @@
       "name": "When Executed by Another Workflow",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
-      "position": [-200, 0],
+      "position": [
+        -200,
+        0
+      ],
       "parameters": {
         "inputSource": "jsonExample",
         "jsonExample": "{\n  \"to\": \"recipient@example.com\",\n  \"subject\": \"제목\",\n  \"body\": \"본문\"\n}"
@@ -17,27 +20,46 @@
       "name": "Send Email",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [40, 0],
+      "position": [
+        40,
+        0
+      ],
       "parameters": {
-        "fromEmail": "보낸이 <your-gmail@gmail.com>",
+        "fromEmail": "BC Kim <bkimkr0139@gmail.com>",
         "toEmail": "={{ $json.to || $json.body?.to }}",
         "subject": "={{ $json.subject || $json.body?.subject }}",
         "emailFormat": "text",
         "text": "={{ $json.body?.body || $json.body }}",
-        "options": { "appendAttribution": false }
+        "options": {
+          "appendAttribution": false
+        }
       },
-      "credentials": { "smtp": { "id": "", "name": "Gmail SMTP" } }
+      "credentials": {
+        "smtp": {
+          "id": "",
+          "name": "SMTP account 2"
+        }
+      },
+      "webhookId": "8ead830c-5767-40f9-b900-5a082f1cbf4e"
     },
     {
       "id": "ret",
       "name": "Return",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [280, 0],
+      "position": [
+        280,
+        0
+      ],
       "parameters": {
         "assignments": {
           "assignments": [
-            { "id": "ok", "name": "result", "value": "=✉️ 이메일 발송 완료: {{ $('When Executed by Another Workflow').item.json.to }} (제목: {{ $('When Executed by Another Workflow').item.json.subject }})", "type": "string" }
+            {
+              "id": "ok",
+              "name": "result",
+              "value": "=✉️ 이메일 발송 완료: {{ $('When Executed by Another Workflow').item.json.to }} (제목: {{ $('When Executed by Another Workflow').item.json.subject }})",
+              "type": "string"
+            }
           ]
         },
         "options": {}
@@ -48,14 +70,56 @@
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [-200, 200],
-      "parameters": { "httpMethod": "POST", "path": "send_email_tool", "responseMode": "lastNode", "options": {} }
+      "position": [
+        -200,
+        200
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send_email_tool",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "970cb23c-4c70-440a-9af2-a75e2bedf091"
     }
   ],
   "connections": {
-    "When Executed by Another Workflow": { "main": [[{ "node": "Send Email", "type": "main", "index": 0 }]] },
-    "Webhook": { "main": [[{ "node": "Send Email", "type": "main", "index": 0 }]] },
-    "Send Email": { "main": [[{ "node": "Return", "type": "main", "index": 0 }]] }
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Return",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1", "timezone": "Asia/Seoul" }
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Seoul"
+  }
 }

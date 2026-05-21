@@ -1,84 +1,91 @@
 # HANDOFF — telegram_bot AI 비서 (이어서 작업용)
 
-> 새 세션에서 이 프로젝트를 이어받는 사람(또는 AI)을 위한 인계 문서. 현재 상태, 핵심 제약, 다음 할 일을 담았다.
+> 새 세션에서 이 프로젝트를 이어받는 사람(또는 AI)을 위한 인계 문서.
 
 ## 한 줄 요약
 
-n8n으로 만든 **텔레그램 개인 비서 봇**. 현재 **대화(메모리) + 이메일 발송**이 작동한다. **RAG 검색은 미완성**(다음 작업).
+n8n으로 만든 **텔레그램 개인 비서 봇**. **대화(메모리) + 자연어 이메일 발송 + 문서 기반 RAG 질의응답**이 모두 작동한다.
 
-## 환경 (중요)
+## 실행 방법
 
-- **n8n 2.20.11** self-hosted, **npx로 실행** (글로벌/Docker 아님). npm stable 최신이 2.20.11 (2.21.x는 beta만).
-  - 빠른 재시작: `& "C:\Users\User\AppData\Local\npm-cache\_npx\<hash>\node_modules\.bin\n8n.cmd" start` (install 우회)
-- **Telegram webhook은 HTTPS 필수** → **ngrok** 터널 사용. `WEBHOOK_URL` 환경변수에 ngrok HTTPS URL 넣고 n8n 시작.
-  - ngrok·cloudflared 모두 설치됨. ngrok 대시보드: `http://127.0.0.1:4040`
-  - **ngrok URL은 재시작 시 바뀜** → 바뀌면 `WEBHOOK_URL` 갱신 + n8n 재시작
-- n8n REST: `http://localhost:5678`
-- Docker에 `pgvector/pgvector:pg16`(5432), redis, minio 상시 가동 → RAG 영구저장에 pgvector 재사용 가능
+두 가지 경로가 있다. 임포트/자격증명 절차는 [README.md](README.md)에 단계별로 있다.
+
+### A. Docker Compose (이식성, 권장)
+`docker-compose.yml` 하나로 **n8n(2.20.11) + pgvector** 동시 기동.
+```bash
+cp .env.example .env   # N8N_ENCRYPTION_KEY, WEBHOOK_URL 등 설정
+docker compose up -d
+```
+- RAG 저장소: postgres 서비스의 `n8n_rag` DB(`vector` 확장은 `db/init/01-vector.sql`로 자동). n8n의 Postgres 자격증명 host는 컨테이너명 `postgres`.
+
+### B. 로컬 npx (원개발 환경)
+- **n8n 2.20.11** self-hosted, npx 실행. 빠른 재시작:
+  `& "C:\Users\User\AppData\Local\npm-cache\_npx\<hash>\node_modules\.bin\n8n.cmd" start` (install 우회)
+  - ⚠️ npx 캐시본이 여러 개일 수 있고 일부는 설치 손상(`breaking-changes` 모듈 누락 등). 온전한 2.20.11 캐시본을 골라야 함.
+- RAG 저장소: 별도 Docker `pgvector/pgvector:pg16`(5432)에 `n8n_rag` DB + `CREATE EXTENSION vector`. n8n은 호스트에서 돌므로 host `localhost`.
+
+### 공통 — Telegram webhook (HTTPS 필수)
+- Telegram은 HTTPS만 허용 → **ngrok** 터널 사용. `WEBHOOK_URL`에 ngrok HTTPS URL 넣고 n8n 기동.
+- **ngrok URL은 재시작 시 바뀜** → 바뀌면 `WEBHOOK_URL` 갱신 + n8n 재기동 + `telegram_bot` 비활성화→활성화(토글)로 webhook 재등록.
+- ngrok 대시보드 `http://127.0.0.1:4040`, n8n REST `http://localhost:5678`.
 
 ## ⚠️ 핵심 제약 — AI Agent tool calling 불가
 
-이 환경(n8n 2.20.11 + OpenAI Chat Model)에서 **AI Agent의 tool 연결이 전부 실패**한다:
+n8n 2.20.11 + OpenAI Chat Model에서 **AI Agent의 tool 연결이 전부 실패**한다:
 ```
 Invalid schema for function '...': schema must be a JSON Schema of 'type: "object"', got 'type: "None"'.
 ```
-- 시도해서 전부 실패한 노드: `emailSendTool`, `toolVectorStore`, `toolWorkflow`, `toolHttpRequest`(langchain/base 둘 다), `vectorStoreInMemory` retrieve-as-tool
-- 모델(gpt-4o-mini/gpt-5.4-mini), OpenAI Chat Model typeVersion(1.2/1.3) 무관하게 동일
-- 원인: n8n 2.20.11 langchain 패키지가 tool input schema를 OpenAI function 형식으로 변환 시 `parameters`를 None으로 보냄
+- 전부 실패: `emailSendTool`, `toolVectorStore`, `toolWorkflow`, `toolHttpRequest`, vectorStore retrieve-as-tool. 모델/typeVersion 무관.
+- 원인: 2.20.11 langchain이 tool input schema를 OpenAI function 변환 시 `parameters`를 None으로 보냄.
 
-### ✅ 작동하는 우회 패턴 (이걸로 이메일 구현함)
-
-tool calling을 쓰지 말 것. 대신:
-1. **AI Agent는 tool 없이** (model + memory만), systemMessage로 **JSON만 출력** 강제
-   - `{"action":"email","to":..,"subject":..,"body":..}` 또는 `{"action":"chat","reply":..}`
-2. **Code 노드**로 JSON 파싱 (실패 시 chat fallback)
-3. **IF 노드**로 action 분기
-4. 실제 기능은 **Execute Sub-workflow 노드**(일반 노드, tool 아님)로 별도 워크플로우 호출
+### ✅ 작동하는 우회 패턴
+tool을 쓰지 말 것:
+1. **AI Agent는 tool 없이** (model + memory만), systemMessage로 **JSON만 출력** 강제.
+2. **Code 노드**로 JSON 파싱(실패 시 chat fallback).
+3. **IF 노드**로 action 분기.
+4. 실제 기능은 **Execute Sub-workflow 노드**(일반 노드)로 호출.
 
 ## 현재 워크플로우
 
-### telegram_bot (메인) — `workflows/telegram_bot.json`
+### telegram_bot (메인) — `workflows/telegram_bot.json` (19 노드)
 ```
 Telegram Trigger → Document Attached?(IF)
-   ├─ (문서첨부) → Download File → Insert to RAG → Reply: Indexed
-   └─ (텍스트)   → AI Assistant(JSON출력) → Parse Response(Code) → Is Email?(IF)
-                       ├─ email → Send Email Sub(Execute Workflow) → Reply: Email
-                       └─ chat  → Reply: Chat
+  ├─ (문서첨부) → Download File → Insert to RAG(PGVector insert) → Reply: Indexed
+  └─ (텍스트)   → Search RAG(PGVector load, topK5) → Build Context(Code)
+                    → AI Assistant(JSON출력, 메모리) → Parse Response(Code) → Is Email?(IF)
+                        ├ email → Send Email Sub(Execute Workflow) → Reply: Email
+                        └ chat  → Reply: Chat
 ```
-- AI Assistant: OpenAI Chat Model(gpt-4o-mini, v1.2) + Conversation Memory(채팅ID별, 10턴). **tool 없음**.
-- 문서 인덱싱 경로는 살아있으나 **검색 도구가 없어 RAG 활용 불가** (다음 작업)
+- AI Assistant: OpenAI Chat Model(gpt-4o-mini) + Conversation Memory(채팅ID별 10턴). tool 없음.
+- RAG 검색은 `Embeddings (Query)`가 `Search RAG`에 ai_embedding으로 연결. `Build Context`가 검색 청크를 모아 `{userMessage, context, chatId}`로 출력 → AI Assistant의 `text`=`{{ $json.userMessage }}`, systemMessage `[참고 문서]`=`{{ $json.context }}`.
+- `Search RAG`는 `alwaysOutputData:true` + `onError:continueRegularOutput` → 검색 0건/테이블 미존재여도 봇이 멈추지 않음.
 
-### send_email_tool (서브) — `workflows/send_email_tool.json`
+### send_email_tool (서브) — `workflows/send_email_tool.json` (4 노드)
 ```
 Execute Workflow Trigger ┐
 Webhook(POST /send_email_tool) ┘→ Send Email(SMTP, appendAttribution:false) → Return(결과메시지)
 ```
-- input: to / subject / body
-- **active 상태 유지 필수** (webhook trigger 때문)
+- input: to / subject / body. **active 유지 필수**(webhook trigger).
 
-## 작동 확인됨 (2026-05-21)
-- ✅ 텔레그램 대화 + 메모리
-- ✅ 자연어 이메일 발송 ("OO한테 제목 본문 메일 보내줘")
-- ✅ 이메일 푸터(n8n attribution) 제거됨
+## RAG 설계 메모
+- **인메모리(vectorStoreInMemory) 금지**: 재시작 시 색인 소실 + 워크플로우별 격리. → **PGVector(영구)** 사용.
+- 테이블 `telegram_docs`는 첫 인덱싱 시 PGVector 노드가 자동 생성.
+- 임베딩 모델은 insert/query **동일**해야 함(text-embedding-3-small, 1536). 다르면 검색 안 됨.
 
-## 다음 할 일 — RAG 검색 추가
+## 💡 디버깅 교훈 (꼭 기억)
 
-이메일과 **같은 우회 패턴**으로:
-1. AI Assistant systemMessage에 `{"action":"rag","query":".."}` 케이스 추가
-2. Parse Response / Is Email? 옆에 RAG 분기 추가 (Switch로 바꾸거나 IF 체인)
-3. RAG 검색용 sub-workflow 생성: Execute Workflow Trigger → Vector Store retrieve(일반 노드) → 결과 반환
-4. 메인에서 Execute Sub-workflow로 호출
+1. **n8n 표현식은 필드 값이 `=`로 시작해야 평가된다.** AI Agent `systemMessage`에 `{{ $json.context }}`를 넣었는데 `=` 접두사가 없어 **literal 문자열로** LLM에 전달됐고, 모델은 늘 빈 [참고 문서]를 받아 "문서 없다"고 거부했다. → systemMessage를 `=`로 시작하게 고쳐 해결. (`text`는 `=`가 있어서 정상이었음.)
+2. **AI Agent가 컨텍스트를 무시하면, LLM이 실제 받은 메시지를 먼저 확인**하라. 실행 원본의
+   `runData["OpenAI Chat Model"][0].inputOverride.ai_languageModel[0][0].json.messages`
+   에 최종 system/human 프롬프트가 들어 있다. REST: `GET /api/v1/executions/{id}?includeData=true`.
+3. 위 1번을 메모리 오염으로 오진했었다(거부가 메모리에 쌓인 **증상**일 뿐). 메모리를 꺼도 거부가 지속되면 메모리가 원인이 아니다.
+4. webhook 직접 트리거는 Telegram secret-token 검증으로 403 → 자체 테스트 불가, 실테스트는 텔레그램에서.
 
-**RAG 주의:** Simple Vector Store(인메모리)는 워크플로우별 격리라 메인 인덱싱 ↔ 서브 검색이 데이터 공유 안 됨. → **pgvector(이미 Docker에 있음)로 전환**하거나, 인덱싱+검색을 같은 워크플로우에 둘 것.
+## 자격증명 (인스턴스마다 재생성)
+- OpenAI(Chat+Embeddings 공용), SMTP(Gmail, fromEmail 본인 주소로), Telegram(BotFather 토큰), Postgres(pgvector RAG; docker는 host `postgres`/db `n8n_rag`).
+- 워크플로우 JSON의 `credentials.id`는 비어 있음 → 임포트 후 UI에서 연결.
 
-## 자격 증명 (이 환경 기준, 새 환경이면 재생성)
-- OpenAI: `OpenAI 2026-05`
-- SMTP: `SMTP account 2` (Gmail, fromEmail `BC Kim <bkimkr0139@gmail.com>`)
-- Telegram: `Telegram Bot`
-- workflow.json들의 credentials.id는 비워뒀음 → import 후 UI에서 각 노드에 연결 필요
-
-## 새 세션 시작 시 체크리스트
-1. n8n 실행 중인지 (`http://localhost:5678`), ngrok 터널 살아있는지 확인
-2. ngrok URL 바뀌었으면 `WEBHOOK_URL` 갱신 + n8n 재시작 + telegram_bot의 Telegram Trigger webhook 재등록(활성화 토글)
-3. 두 워크플로우 active 상태 확인
-4. RAG 작업 이어가기 (위 "다음 할 일")
+## 다음 후보
+- RAG 품질 튜닝(청크 크기/overlap/topK, score 임계값으로 무관 문서 컷).
+- 문서 외 업무 도구 추가(같은 우회 패턴).
+- 작은 모델 한계 시 gpt-4o 등으로 상향.

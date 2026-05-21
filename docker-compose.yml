@@ -1,0 +1,60 @@
+name: ai-n8n-assist
+
+# 다른 플랫폼(서버/노트북)에서 바로 실행 가능한 자급식 스택.
+#   docker compose up -d
+# - n8n: 메인 워크플로우 엔진 (2.20.11 고정 — 아래 주석 참고)
+# - postgres(pgvector): RAG 벡터 영구 저장소
+#
+# n8n 버전을 2.20.11로 고정한 이유: 이 봇은 2.20.11의 AI Agent tool-calling
+# 버그를 우회하는 패턴(JSON 출력 + 분기 + Execute Sub-workflow)으로 만들어졌다.
+# 최신 n8n에서 버그가 고쳐졌더라도 이 워크플로우는 그대로 동작하지만,
+# 동일 동작을 보장하려면 핀을 유지하는 것을 권장한다.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ai-n8n-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-n8n}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-n8n_password}
+      POSTGRES_DB: ${POSTGRES_DB:-n8n_rag}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-n8n} -d ${POSTGRES_DB:-n8n_rag}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  n8n:
+    image: n8nio/n8n:2.20.11
+    container_name: ai-n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5678:5678"
+    environment:
+      # 외부 공개 URL — Telegram webhook은 HTTPS 필수.
+      # 로컬: ngrok/cloudflared 터널의 HTTPS URL. 클라우드: 공개 도메인.
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-Asia/Seoul}
+      TZ: ${GENERIC_TIMEZONE:-Asia/Seoul}
+      # 자격증명 암호화 키 — 한 번 정하면 고정. 비우면 부팅 실패(의도).
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?set N8N_ENCRYPTION_KEY in .env (e.g. openssl rand -hex 32)}
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_RUNNERS_ENABLED: "true"
+      N8N_PUBLIC_API_DISABLED: "false"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/workflows:ro
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  n8n_data:

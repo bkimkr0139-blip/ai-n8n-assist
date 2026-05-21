@@ -1,6 +1,7 @@
 # 비밀이 들어갈 수 있는 파일
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 *credentials*.json
