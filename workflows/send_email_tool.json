@@ -1,0 +1,61 @@
+{
+  "name": "send_email_tool",
+  "nodes": [
+    {
+      "id": "trg",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [-200, 0],
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"to\": \"recipient@example.com\",\n  \"subject\": \"제목\",\n  \"body\": \"본문\"\n}"
+      }
+    },
+    {
+      "id": "send",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [40, 0],
+      "parameters": {
+        "fromEmail": "보낸이 <your-gmail@gmail.com>",
+        "toEmail": "={{ $json.to || $json.body?.to }}",
+        "subject": "={{ $json.subject || $json.body?.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.body?.body || $json.body }}",
+        "options": { "appendAttribution": false }
+      },
+      "credentials": { "smtp": { "id": "", "name": "Gmail SMTP" } }
+    },
+    {
+      "id": "ret",
+      "name": "Return",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [280, 0],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "ok", "name": "result", "value": "=✉️ 이메일 발송 완료: {{ $('When Executed by Another Workflow').item.json.to }} (제목: {{ $('When Executed by Another Workflow').item.json.subject }})", "type": "string" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b287ea37-eeab-4cfc-9753-d555aaaa5469",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-200, 200],
+      "parameters": { "httpMethod": "POST", "path": "send_email_tool", "responseMode": "lastNode", "options": {} }
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": { "main": [[{ "node": "Send Email", "type": "main", "index": 0 }]] },
+    "Webhook": { "main": [[{ "node": "Send Email", "type": "main", "index": 0 }]] },
+    "Send Email": { "main": [[{ "node": "Return", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Seoul" }
+}

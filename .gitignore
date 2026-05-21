@@ -1,0 +1,23 @@
+# 비밀이 들어갈 수 있는 파일
+.env
+.env.*
+*.key
+*.pem
+*credentials*.json
+*secret*
+
+# n8n 인스턴스 데이터
+.n8n/
+.cache/
+n8n*.sqlite*
+
+# 로그
+*.log
+ngrok.log
+ngrok.err
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,197 @@
+{
+  "name": "telegram_bot",
+  "nodes": [
+    {
+      "parameters": { "updates": ["message"], "additionalFields": {} },
+      "id": "6ba2e648-c2bc-4770-8445-b6e1dc1fe2a6",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 416],
+      "credentials": { "telegramApi": { "id": "", "name": "Telegram Bot" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "doc-check", "leftValue": "={{ $json.message.document }}", "rightValue": "", "operator": { "type": "object", "operation": "exists", "singleValue": true } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bbb848e0-8e1e-43c9-a721-030a6e0d2c96",
+      "name": "Document Attached?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [224, 416]
+    },
+    {
+      "parameters": { "resource": "file", "fileId": "={{ $json.message.document.file_id }}", "additionalFields": {} },
+      "id": "ae15960d-9f68-4f5c-b163-1e5a241fdfea",
+      "name": "Download Telegram File",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [640, 208],
+      "credentials": { "telegramApi": { "id": "", "name": "Telegram Bot" } }
+    },
+    {
+      "parameters": { "mode": "insert", "memoryKey": { "__rl": true, "mode": "id", "value": "rag_docs" } },
+      "id": "a4c7008c-bc45-43ce-987b-4e46d6940711",
+      "name": "Insert to RAG",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+      "typeVersion": 1.3,
+      "position": [1040, 0]
+    },
+    {
+      "parameters": { "options": {} },
+      "id": "bab25ccc-bf78-4dd4-9127-8d01f4bf696f",
+      "name": "Embeddings (Insert)",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [912, 256],
+      "credentials": { "openAiApi": { "id": "", "name": "OpenAI" } }
+    },
+    {
+      "parameters": { "dataType": "binary", "textSplittingMode": "custom", "options": {} },
+      "id": "05e09560-59e4-427a-a71e-aa742253595a",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [1072, 240]
+    },
+    {
+      "parameters": { "chunkOverlap": 200, "options": {} },
+      "id": "79246f0b-3e24-4bfc-8e1d-5c972f2c613f",
+      "name": "Recursive Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [1072, 432]
+    },
+    {
+      "parameters": { "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}", "text": "📄 문서가 RAG에 등록되었습니다.", "additionalFields": {} },
+      "id": "81046e9e-9ff6-4d0e-9897-26aeb378f2fd",
+      "name": "Reply: Indexed",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1392, 224],
+      "credentials": { "telegramApi": { "id": "", "name": "Telegram Bot" } }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message.text }}",
+        "options": {
+          "systemMessage": "당신은 BC Kim의 개인 비서입니다. 반드시 아래 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트는 절대 출력하지 마세요.\n\n이메일 발송 요청이고 받는사람/제목/본문이 모두 명확하면:\n{\"action\":\"email\",\"to\":\"받는주소\",\"subject\":\"제목\",\"body\":\"본문\"}\n\n그 외 모든 경우(일반 대화, 이메일 정보 부족 등):\n{\"action\":\"chat\",\"reply\":\"사용자에게 보낼 한국어 답변\"}\n\n이메일 정보가 부족하면 action을 chat으로 하고 reply에 무엇이 필요한지 물어보세요. 대화 맥락을 활용하세요."
+        }
+      },
+      "id": "ba0f4135-3f22-456b-ae77-f555536f81f8",
+      "name": "AI Assistant",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [576, 560]
+    },
+    {
+      "parameters": { "model": { "__rl": true, "mode": "id", "value": "gpt-4o-mini" }, "options": {} },
+      "id": "ec88fca1-7f0c-491d-aa51-e04678fb6d1b",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [208, 816],
+      "credentials": { "openAiApi": { "id": "", "name": "OpenAI" } }
+    },
+    {
+      "parameters": { "sessionIdType": "customKey", "sessionKey": "={{ $(\"Telegram Trigger\").item.json.message.chat.id }}", "contextWindowLength": 10 },
+      "id": "284fa92f-9be8-4ce2-b415-82e267393786",
+      "name": "Conversation Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [400, 832]
+    },
+    {
+      "parameters": { "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}", "text": "={{ $json.reply }}", "additionalFields": {} },
+      "id": "664502f0-57ff-4905-9fda-dc8467103da4",
+      "name": "Reply: Chat",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1248, 816],
+      "credentials": { "telegramApi": { "id": "", "name": "Telegram Bot" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = ($input.first().json.output ?? '').toString();\nlet parsed;\ntry {\n  let txt = raw.trim();\n  const m = txt.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(m ? m[0] : txt);\n} catch (e) {\n  parsed = { action: 'chat', reply: raw };\n}\nif (!parsed.action) parsed.action = 'chat';\nif (parsed.action === 'chat' && !parsed.reply) parsed.reply = raw;\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nreturn [{ json: { action: parsed.action, to: parsed.to || '', subject: parsed.subject || '', body: parsed.body || '', reply: parsed.reply || '', chatId } }];"
+      },
+      "id": "7f61781f-2e5c-44b7-8ef2-d88c6da5de4a",
+      "name": "Parse Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [832, 560]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+          "conditions": [
+            { "id": "email-check", "leftValue": "={{ $json.action }}", "rightValue": "email", "operator": { "type": "string", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ea6e4257-3d2c-4f86-944a-8efb7618dcb8",
+      "name": "Is Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [960, 752]
+    },
+    {
+      "parameters": {
+        "workflowId": { "__rl": true, "value": "REPLACE_WITH_send_email_tool_ID", "mode": "id" },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": { "to": "={{ $json.to }}", "subject": "={{ $json.subject }}", "body": "={{ $json.body }}" },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "to", "displayName": "to", "type": "string", "canBeUsedToMatch": false, "required": false, "display": true, "defaultMatch": false },
+            { "id": "subject", "displayName": "subject", "type": "string", "canBeUsedToMatch": false, "required": false, "display": true, "defaultMatch": false },
+            { "id": "body", "displayName": "body", "type": "string", "canBeUsedToMatch": false, "required": false, "display": true, "defaultMatch": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "id": "307d0ce6-0067-4dbc-afe1-464eeff02a91",
+      "name": "Send Email Sub",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [1280, 560]
+    },
+    {
+      "parameters": { "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}", "text": "={{ $json.result || '✉️ 메일 처리 완료' }}", "additionalFields": {} },
+      "id": "df9ea482-705a-4ba1-b876-c61f58c4819e",
+      "name": "Reply: Email",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1504, 464],
+      "credentials": { "telegramApi": { "id": "", "name": "Telegram Bot" } }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": { "main": [[{ "node": "Document Attached?", "type": "main", "index": 0 }]] },
+    "Document Attached?": { "main": [[{ "node": "Download Telegram File", "type": "main", "index": 0 }], [{ "node": "AI Assistant", "type": "main", "index": 0 }]] },
+    "Download Telegram File": { "main": [[{ "node": "Insert to RAG", "type": "main", "index": 0 }]] },
+    "Insert to RAG": { "main": [[{ "node": "Reply: Indexed", "type": "main", "index": 0 }]] },
+    "Embeddings (Insert)": { "ai_embedding": [[{ "node": "Insert to RAG", "type": "ai_embedding", "index": 0 }]] },
+    "Default Data Loader": { "ai_document": [[{ "node": "Insert to RAG", "type": "ai_document", "index": 0 }]] },
+    "Recursive Splitter": { "ai_textSplitter": [[{ "node": "Default Data Loader", "type": "ai_textSplitter", "index": 0 }]] },
+    "OpenAI Chat Model": { "ai_languageModel": [[{ "node": "AI Assistant", "type": "ai_languageModel", "index": 0 }]] },
+    "Conversation Memory": { "ai_memory": [[{ "node": "AI Assistant", "type": "ai_memory", "index": 0 }]] },
+    "AI Assistant": { "main": [[{ "node": "Parse Response", "type": "main", "index": 0 }]] },
+    "Parse Response": { "main": [[{ "node": "Is Email?", "type": "main", "index": 0 }]] },
+    "Is Email?": { "main": [[{ "node": "Send Email Sub", "type": "main", "index": 0 }], [{ "node": "Reply: Chat", "type": "main", "index": 0 }]] },
+    "Send Email Sub": { "main": [[{ "node": "Reply: Email", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Seoul" }
+}
