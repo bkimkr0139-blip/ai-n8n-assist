@@ -17,19 +17,18 @@
   button { cursor: pointer; border-color: #2a6; background: #163; font-weight: 600; }
   button:disabled { opacity: .4; cursor: default; }
   #stop { border-color: #a33; background: #611; }
-  #status { padding: 10px 12px; border-radius: 10px; background: #1a1d24; margin: 12px 0; }
+  #status { padding: 10px 12px; border-radius: 10px; background: #1a1d24; margin: 12px 0; word-break: break-all; }
   #log { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
   .msg { padding: 10px 12px; border-radius: 12px; max-width: 85%; white-space: pre-wrap; line-height: 1.4; }
   .me { align-self: flex-end; background: #1f3a5f; }
   .ai { align-self: flex-start; background: #23303a; }
   .sys { align-self: center; background: #2a2333; font-size: .85rem; opacity: .85; }
   .hint { font-size: .8rem; opacity: .6; }
-  a { color: #6cf; }
 </style>
 </head>
 <body>
   <h1>🎙️ 실시간 음성 비서 (OpenAI Realtime)</h1>
-  <p class="hint">마이크를 계속 누르지 않아도, 말하면 자동으로 알아듣고 음성으로 답합니다(서버 VAD). 텔레그램이 아닌 브라우저에서 동작합니다.</p>
+  <p class="hint">마이크를 계속 누르지 않아도, 말하면 자동으로 알아듣고 음성으로 답합니다(서버 VAD).</p>
 
   <div class="row">
     <input id="key" type="password" placeholder="OpenAI API Key (sk-...)" autocomplete="off" />
@@ -45,6 +44,8 @@
       <option value="sage">sage</option>
       <option value="shimmer">shimmer</option>
       <option value="verse">verse</option>
+      <option value="marin">marin</option>
+      <option value="cedar">cedar</option>
     </select>
     <button id="start">▶ 음성 대화 시작</button>
     <button id="stop" disabled>■ 중지</button>
@@ -52,32 +53,35 @@
 
   <div id="status">대기 중 — API 키 입력 후 [음성 대화 시작]</div>
   <div id="log"></div>
-
   <audio id="audio" autoplay></audio>
 
   <script>
-    // ===== 설정 =====
-    // 모델이 안 되면 'gpt-realtime' 로 바꿔보세요.
-    const MODEL = 'gpt-4o-realtime-preview';
+    // 모델/엔드포인트 (GA Realtime). 필요시 여기만 바꾸면 됨.
+    const MODEL = 'gpt-realtime';
+    const CALLS_URL = 'https://api.openai.com/v1/realtime/calls';
     const INSTRUCTIONS =
-      '당신은 BC Kim의 한국어 개인 비서입니다. 항상 한국어로, 짧고 자연스러운 구어체로 대화하세요. ' +
-      '사용자가 음성으로 말하고 당신도 음성으로 답합니다. 답은 1~3문장으로 간결하게.';
+      '당신은 BC Kim의 한국어 개인 비서입니다. 항상 한국어로, 짧고 자연스러운 구어체로 대화하세요. 답은 1~3문장으로 간결하게.';
 
     const $ = (id) => document.getElementById(id);
     const els = { key: $('key'), voice: $('voice'), start: $('start'), stop: $('stop'),
                   status: $('status'), log: $('log'), audio: $('audio') };
-
     els.key.value = localStorage.getItem('oai_key') || '';
     let pc = null, dc = null, micStream = null, aiBuf = '';
 
     const setStatus = (s) => { els.status.textContent = s; };
     function add(cls, text) {
-      const d = document.createElement('div');
-      d.className = 'msg ' + cls;
-      d.textContent = text;
-      els.log.appendChild(d);
-      d.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      return d;
+      const d = document.createElement('div'); d.className = 'msg ' + cls; d.textContent = text;
+      els.log.appendChild(d); d.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+    function sessionConfig() {
+      return { type: 'session.update', session: {
+        type: 'realtime',
+        instructions: INSTRUCTIONS,
+        audio: {
+          input: { transcription: { model: 'whisper-1' }, turn_detection: { type: 'server_vad' } },
+          output: { voice: els.voice.value }
+        }
+      } };
     }
 
     async function start() {
@@ -86,90 +90,54 @@
       localStorage.setItem('oai_key', key);
       els.start.disabled = true;
 
-      try {
-        setStatus('마이크 권한 요청 중...');
-        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (e) {
-        setStatus('❌ 마이크 권한이 거부되었습니다. 브라우저 설정에서 허용해 주세요.');
-        els.start.disabled = false; return;
-      }
+      try { setStatus('마이크 권한 요청 중...'); micStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+      catch (e) { setStatus('❌ 마이크 권한 거부됨. 브라우저 설정에서 허용하세요.'); els.start.disabled = false; return; }
 
       pc = new RTCPeerConnection();
       pc.ontrack = (e) => { els.audio.srcObject = e.streams[0]; };
       micStream.getTracks().forEach((t) => pc.addTrack(t, micStream));
 
       dc = pc.createDataChannel('oai-events');
-      dc.onopen = () => {
-        setStatus('🟢 연결됨 — 그냥 말씀하세요 (마이크 누를 필요 없음)');
-        dc.send(JSON.stringify({
-          type: 'session.update',
-          session: {
-            instructions: INSTRUCTIONS,
-            voice: els.voice.value,
-            modalities: ['audio', 'text'],
-            input_audio_transcription: { model: 'whisper-1' },
-            turn_detection: { type: 'server_vad' }
-          }
-        }));
-      };
+      dc.onopen = () => { setStatus('🟢 연결됨 — 그냥 말씀하세요 (마이크 누를 필요 없음)');
+        try { dc.send(JSON.stringify(sessionConfig())); } catch {} ; add('sys', '대화를 시작합니다. 편하게 말씀하세요.'); };
       dc.onmessage = (e) => {
         let ev; try { ev = JSON.parse(e.data); } catch { return; }
-        switch (ev.type) {
-          case 'conversation.item.input_audio_transcription.completed':
-            if (ev.transcript) add('me', '🗣️ ' + ev.transcript.trim());
-            break;
-          case 'response.audio_transcript.delta':
-            aiBuf += (ev.delta || '');
-            break;
-          case 'response.audio_transcript.done':
-            add('ai', '🤖 ' + (ev.transcript || aiBuf).trim());
-            aiBuf = '';
-            break;
-          case 'error':
-            add('sys', '⚠️ ' + JSON.stringify(ev.error || ev));
-            break;
-        }
+        const t = ev.type || '';
+        if (t.indexOf('input_audio_transcription') >= 0 && t.endsWith('.completed')) { if (ev.transcript) add('me', '🗣️ ' + ev.transcript.trim()); }
+        else if (t.endsWith('audio_transcript.delta')) { aiBuf += (ev.delta || ''); }
+        else if (t.endsWith('audio_transcript.done')) { add('ai', '🤖 ' + (ev.transcript || aiBuf).trim()); aiBuf = ''; }
+        else if (t === 'error') { add('sys', '⚠️ ' + JSON.stringify(ev.error || ev)); }
       };
       pc.onconnectionstatechange = () => {
-        if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
-          setStatus('연결 종료됨 (' + pc.connectionState + ')');
-        }
+        if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) setStatus('연결 종료됨 (' + pc.connectionState + ')');
       };
 
       try {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         setStatus('OpenAI Realtime 연결 중...');
-        const resp = await fetch('https://api.openai.com/v1/realtime?model=' + encodeURIComponent(MODEL), {
-          method: 'POST',
-          body: offer.sdp,
+        const resp = await fetch(CALLS_URL + '?model=' + encodeURIComponent(MODEL), {
+          method: 'POST', body: offer.sdp,
           headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/sdp' }
         });
         if (!resp.ok) {
-          const t = await resp.text();
-          setStatus('❌ 연결 실패 (' + resp.status + '): ' + t.slice(0, 300));
+          const body = await resp.text().catch(() => '');
+          setStatus('❌ 연결 실패 (' + resp.status + '): ' + body.slice(0, 400));
           cleanup(); return;
         }
         await pc.setRemoteDescription({ type: 'answer', sdp: await resp.text() });
         els.stop.disabled = false;
-        add('sys', '대화를 시작합니다. 편하게 말씀하세요.');
-      } catch (err) {
-        setStatus('❌ 오류: ' + (err && err.message ? err.message : err));
-        cleanup();
-      }
+      } catch (err) { setStatus('❌ 오류: ' + (err && err.message ? err.message : err)); cleanup(); }
     }
 
     function cleanup() {
       try { if (dc) dc.close(); } catch {}
       try { if (pc) pc.close(); } catch {}
       try { if (micStream) micStream.getTracks().forEach((t) => t.stop()); } catch {}
-      pc = dc = micStream = null;
-      els.start.disabled = false; els.stop.disabled = true;
+      pc = dc = micStream = null; els.start.disabled = false; els.stop.disabled = true;
     }
     function stop() { cleanup(); setStatus('■ 중지됨'); }
-
-    els.start.onclick = start;
-    els.stop.onclick = stop;
+    els.start.onclick = start; els.stop.onclick = stop;
   </script>
 </body>
 </html>

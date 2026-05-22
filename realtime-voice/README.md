@@ -39,7 +39,7 @@ n8n 웹훅 응답은 강제로 `Content-Security-Policy: sandbox ...`(allow-same
 ## 참고 / 한계
 
 - **비용**: Realtime API는 Whisper+TTS 조합보다 비싸다(오디오 토큰 과금). 길게 켜두면 비용 누적.
-- **모델**: 기본 `gpt-4o-realtime-preview`. 안 되면 `index.html` 상단 `MODEL` 을 `gpt-realtime` 으로 변경.
+- **모델/엔드포인트**: GA `gpt-realtime` + `POST /v1/realtime/calls?model=gpt-realtime`(WebRTC SDP, 표준 키 Bearer). 프리뷰 `gpt-4o-realtime-preview`/구 `/v1/realtime` 엔드포인트는 폐기되어 400. 세션 설정은 데이터채널 `session.update`의 nested 스키마(`audio.input.transcription`, `audio.input.turn_detection`, `audio.output.voice`).
 - **보안**: 표준 API 키를 브라우저에서 직접 사용한다(로컬 개인용 가정). 외부에 배포하려면 서버에서 **ephemeral token**을 발급하는 방식으로 바꿔야 한다.
 - **CORS**: 브라우저→`api.openai.com/v1/realtime` 호출이 CORS로 막히면, 작은 토큰 발급 백엔드(ephemeral key)가 필요하다. 그 경우 알려주면 추가한다.
 - 이 웹앱은 현재 **대화 전용**이다. 텔레그램 봇의 RAG(문서검색)·이메일 기능을 여기에 붙이려면 Realtime의 function calling으로 연동해야 한다(다음 단계 후보).
