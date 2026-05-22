@@ -634,11 +634,41 @@
               "parameterType": "formBinaryData",
               "name": "voice",
               "inputDataFieldName": "data"
+            },
+            {
+              "name": "caption",
+              "value": "={{ ($('Parse Response').first().json.reply || '').slice(0, 1000) }}"
             }
           ]
         },
         "options": {}
       }
+    },
+    {
+      "id": "ddbb1901-8066-4aa0-a52c-f714a93f21d3",
+      "name": "Reply: Heard",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -16,
+        320
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "=🎤 {{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram Bot"
+        }
+      },
+      "webhookId": "418ea1a3-bf35-4f1a-a733-ecfb8a407e68"
     }
   ],
   "connections": {
@@ -866,6 +896,11 @@
         [
           {
             "node": "Prepare Input",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reply: Heard",
             "type": "main",
             "index": 0
           }
