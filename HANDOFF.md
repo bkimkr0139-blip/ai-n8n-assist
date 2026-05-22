@@ -58,14 +58,15 @@ Telegram Trigger → Document Attached?(IF)
                           → AI Assistant(JSON출력, 메모리) → Parse Response(Code) → Is Email?(IF)
                               ├ email → Send Email Sub(Execute Workflow) → Reply: Email
                               └ chat  → Reply Voice?(IF)
-                                          ├ (음성입력) → TTS → Send Audio  (음성 회신)
-                                          └ (텍스트)   → Reply: Chat       (텍스트 회신)
+                                          ├ (음성입력) → TTS → Tag Audio → Send Voice  (음성 노트 회신)
+                                          └ (텍스트)   → Reply: Chat                    (텍스트 회신)
 ```
 - AI Assistant: OpenAI Chat Model(gpt-4o-mini) + Conversation Memory(채팅ID별 10턴). tool 없음.
 - `Prepare Input`(Code): 음성 전사(Whisper 출력 `.text`)와 텍스트(`message.text`)를 `{query, isVoice, chatId}`로 정규화해 두 입력 경로를 합류시킴. **주의: Code 노드는 "Run Once for All Items" 모드라 `$json` 못 씀 → `$input.first().json` 사용.**
 - RAG 검색: `Embeddings (Query)`→`Search RAG`(ai_embedding). `Build Context`가 청크+`Prepare Input`의 query/isVoice/chatId를 모아 `{userMessage, context, chatId, isVoice}` 출력 → AI Assistant `text`=`{{ $json.userMessage }}`, systemMessage `[참고 문서]`=`{{ $json.context }}`(systemMessage는 `=`로 시작해야 평가됨!).
 - `Search RAG`: `alwaysOutputData:true` + `onError:continueRegularOutput` → 검색 0건/테이블 미존재여도 안 멈춤.
-- 음성: `Transcribe Voice`/`TTS`는 `@n8n/n8n-nodes-langchain.openAi`(typeVersion 2.3, resource audio, transcribe/generate). 바이너리는 모두 `data` 프로퍼티로 연결. n8n 기본 Telegram 노드에 `sendVoice`가 없어 `sendAudio`(mp3) 사용.
+- 음성 입력: `Transcribe Voice` = `@n8n/n8n-nodes-langchain.openAi`(v2.3, audio/transcribe). 바이너리 `data`로 연결.
+- 음성 출력: n8n Telegram 노드에 `sendVoice`가 없어 **HTTP Request로 직접 호출**. `TTS`=HTTP→OpenAI `/v1/audio/speech`(tts-1, **response_format opus**; OpenAI 사전정의 자격증명) → `Tag Audio`(Code, 바이너리 `data`의 fileName=`voice.ogg`/mimeType=`audio/ogg` 지정 — sendVoice가 OGG/Opus 요구) → `Send Voice`=HTTP→`https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendVoice`(multipart: chat_id + voice 바이너리). **봇 토큰은 워크플로우에 하드코딩 금지 → `TELEGRAM_BOT_TOKEN` 환경변수**(docker .env). 단, 현재 로컬 라이브 인스턴스는 env 미설정이라 URL에 토큰 하드코딩 상태일 수 있음(repo export 시 gen 스크립트가 자동으로 env 치환). openAi generate 노드는 opus 출력 옵션이 없어 HTTP 사용.
 
 ### send_email_tool (서브) — `workflows/send_email_tool.json` (4 노드)
 ```

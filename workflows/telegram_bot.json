@@ -13,8 +13,8 @@
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.3,
       "position": [
-        -208,
-        64
+        -416,
+        32
       ],
       "webhookId": "76af2d28-63bd-4667-b830-e393fcc4c0ad",
       "credentials": {
@@ -54,8 +54,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        0,
-        80
+        -208,
+        32
       ]
     },
     {
@@ -155,9 +155,7 @@
         "text": "📄 문서가 RAG에 등록되었습니다.",
         "additionalFields": {
           "appendAttribution": false
-        },
-        "resource": "message",
-        "operation": "sendMessage"
+        }
       },
       "id": "81046e9e-9ff6-4d0e-9897-26aeb378f2fd",
       "name": "Reply: Indexed",
@@ -180,7 +178,7 @@
         "promptType": "define",
         "text": "={{ $json.userMessage }}",
         "options": {
-          "systemMessage": "=당신은 BC Kim의 개인 비서입니다.\n\n아래 [참고 문서]에는 사용자가 시스템에 등록·보유한 문서에서 이번 질문과 관련해 검색된 실제 내용이 들어 있습니다. 이것은 사용자가 이미 등록한 문서 그 자체입니다.\n- [참고 문서]에 내용이 있으면, 반드시 그 내용을 근거로 질문에 직접·구체적으로 답하세요. 절대 \"문서를 볼 수 없다\", \"등록된 문서 내용을 확인할 수 없다\"고 답하지 마세요.\n- 어떤 문서가 등록됐는지·무슨 내용인지 묻는 경우에도, [참고 문서]를 보고 어떤 문서가 있는지와 그 요지를 설명하세요. 질문의 문서 이름이 조금 달라도 [참고 문서]와 같은 문서로 판단되면 그것을 근거로 답하세요.\n- [참고 문서]가 정확히 \"(관련 등록 문서 없음)\"일 때만 관련 문서를 찾지 못했다고 안내하세요.\n\n[참고 문서]\n{{ $json.context }}\n\n반드시 아래 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트는 절대 출력하지 마세요.\n\n이메일 발송 요청이고 받는사람/제목/본문이 모두 명확하면:\n{\"action\":\"email\",\"to\":\"받는주소\",\"subject\":\"제목\",\"body\":\"본문\"}\n\n그 외 모든 경우(일반 대화, 문서 기반 질의응답, 이메일 정보 부족 등):\n{\"action\":\"chat\",\"reply\":\"사용자에게 보낼 한국어 답변\"}\n\n이메일 정보가 부족하면 action을 chat으로 하고 reply에 무엇이 필요한지 물어보세요."
+          "systemMessage": "=당신은 BC Kim의 개인 비서입니다.\n\n아래 [참고 문서]에는 사용자가 시스템에 등록·보유한 문서에서 이번 질문과 관련해 검색된 실제 내용이 들어 있습니다. 이것은 사용자가 이미 등록한 문서 그 자체입니다.\n- [참고 문서]에 내용이 있으면, 반드시 그 내용을 근거로 질문에 직접·구체적으로 답하세요. 절대 \"문서를 볼 수 없다\", \"등록된 문서 내용을 확인할 수 없다\"고 답하지 마세요.\n- 어떤 문서가 등록됐는지·무슨 내용인지 묻는 경우에도, [참고 문서]를 보고 어떤 문서가 있는지와 그 요지를 설명하세요. 질문의 문서 이름이 조금 달라도 [참고 문서]와 같은 문서로 판단되면 그것을 근거로 답하세요.\n- [참고 문서]가 정확히 \"(관련 등록 문서 없음)\"일 때만 관련 문서를 찾지 못했다고 안내하세요.\n\n[참고 문서]\n{{ $json.context }}\n\n반드시 아래 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트는 절대 출력하지 마세요.\n\n이메일 발송 요청이고 받는사람/제목/본문이 모두 명확하면:\n{\"action\":\"email\",\"to\":\"받는주소\",\"subject\":\"제목\",\"body\":\"본문\"}\n\n그 외 모든 경우(일반 대화, 문서 기반 질의응답, 이메일 정보 부족 등):\n{\"action\":\"chat\",\"reply\":\"사용자에게 보낼 한국어 답변\"}\n\n이메일 정보가 부족하면 action을 chat으로 하고 reply에 무엇이 필요한지 물어보세요.\n\n{{ $json.isVoice ? '지금 사용자는 음성으로 대화 중입니다. reply는 2~3문장 이내의 짧고 자연스러운 구어체로 작성하세요.' : '' }}"
         }
       },
       "id": "ba0f4135-3f22-456b-ae77-f555536f81f8",
@@ -188,8 +186,8 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        528,
-        560
+        464,
+        704
       ]
     },
     {
@@ -206,8 +204,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
-        208,
-        816
+        224,
+        1072
       ],
       "credentials": {
         "openAiApi": {
@@ -227,8 +225,8 @@
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.4,
       "position": [
-        400,
-        832
+        656,
+        1040
       ]
     },
     {
@@ -237,9 +235,7 @@
         "text": "={{ $json.reply }}",
         "additionalFields": {
           "appendAttribution": false
-        },
-        "resource": "message",
-        "operation": "sendMessage"
+        }
       },
       "id": "664502f0-57ff-4905-9fda-dc8467103da4",
       "name": "Reply: Chat",
@@ -367,9 +363,7 @@
         "text": "={{ $json.result || '✉️ 메일 처리 완료' }}",
         "additionalFields": {
           "appendAttribution": false
-        },
-        "resource": "message",
-        "operation": "sendMessage"
+        }
       },
       "id": "df9ea482-705a-4ba1-b876-c61f58c4819e",
       "name": "Reply: Email",
@@ -400,8 +394,8 @@
       "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
       "typeVersion": 1.3,
       "position": [
-        144,
-        336
+        224,
+        400
       ],
       "alwaysOutputData": true,
       "credentials": {
@@ -421,8 +415,8 @@
       "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
       "typeVersion": 1.2,
       "position": [
-        -80,
-        640
+        224,
+        672
       ],
       "credentials": {
         "openAiApi": {
@@ -440,26 +434,18 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        464,
-        352
+        544,
+        384
       ]
     },
     {
-      "id": "e8e5fc29-5009-443d-a622-ad07384b4b36",
-      "name": "Voice?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -208,
-        320
-      ],
       "parameters": {
         "conditions": {
           "options": {
-            "version": 2,
-            "leftValue": "",
             "caseSensitive": true,
-            "typeValidation": "strict"
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
           },
           "conditions": [
             {
@@ -476,47 +462,54 @@
           "combinator": "and"
         },
         "options": {}
-      }
+      },
+      "id": "e8e5fc29-5009-443d-a622-ad07384b4b36",
+      "name": "Voice?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -560,
+        640
+      ]
     },
     {
-      "id": "84652434-5e9e-4af2-b592-c55578f19a19",
-      "name": "Download Voice",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        -208,
-        500
-      ],
       "parameters": {
         "resource": "file",
         "fileId": "={{ $json.message.voice.file_id }}",
         "additionalFields": {}
       },
+      "id": "84652434-5e9e-4af2-b592-c55578f19a19",
+      "name": "Download Voice",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -320,
+        432
+      ],
+      "webhookId": "0d03ec4f-d791-41ba-8f8e-8d4cb0bb8e1d",
       "credentials": {
         "telegramApi": {
           "id": "",
           "name": "Telegram Bot"
         }
-      },
-      "webhookId": "0d03ec4f-d791-41ba-8f8e-8d4cb0bb8e1d"
+      }
     },
     {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {
+          "language": "ko"
+        }
+      },
       "id": "7fcd67a7-be40-4546-884f-e373ba26c604",
       "name": "Transcribe Voice",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.3,
       "position": [
-        -16,
-        500
+        -96,
+        320
       ],
-      "parameters": {
-        "resource": "audio",
-        "operation": "transcribe",
-        "binaryPropertyName": "data",
-        "options": {
-          "language": "ko"
-        }
-      },
       "credentials": {
         "openAiApi": {
           "id": "",
@@ -525,34 +518,26 @@
       }
     },
     {
+      "parameters": {
+        "jsCode": "const trig = $('Telegram Trigger').first().json;\nconst chatId = trig.message && trig.message.chat ? trig.message.chat.id : null;\nconst j = $input.first().json || {};\nlet query = '';\nlet isVoice = false;\nif (typeof j.text === 'string' && !j.message) {\n  query = j.text;\n  isVoice = true;\n} else {\n  query = (trig.message && trig.message.text) ? trig.message.text : '';\n  isVoice = false;\n}\nreturn [{ json: { query, isVoice, chatId } }];"
+      },
       "id": "df84cbc4-c84f-4cbf-84e0-6dfc9e2bb22d",
       "name": "Prepare Input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        48,
-        320
-      ],
-      "parameters": {
-        "jsCode": "const trig = $('Telegram Trigger').first().json;\nconst chatId = trig.message && trig.message.chat ? trig.message.chat.id : null;\nconst j = $input.first().json || {};\nlet query = '';\nlet isVoice = false;\nif (typeof j.text === 'string' && !j.message) {\n  query = j.text;\n  isVoice = true;\n} else {\n  query = (trig.message && trig.message.text) ? trig.message.text : '';\n  isVoice = false;\n}\nreturn [{ json: { query, isVoice, chatId } }];"
-      }
+        96,
+        512
+      ]
     },
     {
-      "id": "00cee54f-e463-4b6c-ad26-b9e0499a76bc",
-      "name": "Reply Voice?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        1248,
-        1000
-      ],
       "parameters": {
         "conditions": {
           "options": {
-            "version": 2,
-            "leftValue": "",
             "caseSensitive": true,
-            "typeValidation": "loose"
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
           },
           "conditions": [
             {
@@ -569,24 +554,41 @@
           "combinator": "and"
         },
         "options": {}
-      }
+      },
+      "id": "00cee54f-e463-4b6c-ad26-b9e0499a76bc",
+      "name": "Reply Voice?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1248,
+        1008
+      ]
     },
     {
-      "id": "0e7f3737-8906-40fa-ac8c-4597f787e57f",
+      "id": "8a799983-9afb-46ff-b4cf-d0f6083dfd3f",
       "name": "TTS",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 2.3,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         1456,
         1080
       ],
       "parameters": {
-        "resource": "audio",
-        "operation": "generate",
-        "model": "tts-1",
-        "input": "={{ $json.reply }}",
-        "voice": "nova",
-        "options": {}
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/speech",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'tts-1', input: $json.reply, voice: 'nova', response_format: 'opus' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
       },
       "credentials": {
         "openAiApi": {
@@ -596,31 +598,47 @@
       }
     },
     {
-      "id": "b246e602-b57a-4f19-a749-21f670ca66a7",
-      "name": "Send Audio",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
+      "id": "925b406d-d6dd-4201-a757-8f28291a8f16",
+      "name": "Tag Audio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        1664,
+        1616,
         1080
       ],
       "parameters": {
-        "resource": "message",
-        "operation": "sendAudio",
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "binaryData": true,
-        "binaryPropertyName": "data",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
-      "credentials": {
-        "telegramApi": {
-          "id": "",
-          "name": "Telegram Bot"
-        }
-      },
-      "webhookId": "c1efa521-2634-4407-8651-6451c2643bfd"
+        "jsCode": "const item = $input.first();\nconst binary = item.binary || {};\nif (binary.data) {\n  binary.data.fileName = 'voice.ogg';\n  binary.data.mimeType = 'audio/ogg';\n}\nreturn [{ json: item.json || {}, binary }];"
+      }
+    },
+    {
+      "id": "05ae60af-9035-4a27-9e26-7d4f83c34bf7",
+      "name": "Send Voice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1776,
+        1080
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendVoice",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "voice",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      }
     }
   ],
   "connections": {
@@ -887,7 +905,18 @@
       "main": [
         [
           {
-            "node": "Send Audio",
+            "node": "Tag Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Audio": {
+      "main": [
+        [
+          {
+            "node": "Send Voice",
             "type": "main",
             "index": 0
           }

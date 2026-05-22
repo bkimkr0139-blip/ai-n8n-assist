@@ -28,7 +28,7 @@ cd ai-n8n-assist
 
 cp .env.example .env
 # .env 편집: 최소한 N8N_ENCRYPTION_KEY 채우기 (openssl rand -hex 32)
-#           Telegram 쓰려면 WEBHOOK_URL 에 공개 HTTPS URL
+#           Telegram 쓰려면 WEBHOOK_URL(공개 HTTPS URL) + TELEGRAM_BOT_TOKEN(음성 답장용)
 
 docker compose up -d
 ```
@@ -101,8 +101,8 @@ Docker 없이 돌리던 원개발 환경. 자세한 절차·재시작 팁은 [HA
 ### 음성 대화 (STT/TTS)
 - 입력: 음성 메시지면 `Voice?` 분기 → `Download Voice` → `Transcribe Voice`(Whisper, ko) → `Prepare Input`이 전사 텍스트를 query로 정규화(`isVoice` 플래그 부여). 텍스트면 그대로 query.
 - 이후 RAG/AI 파이프라인은 입력 종류와 무관하게 동일.
-- 출력: `Reply Voice?`가 `isVoice`면 `TTS`(openAi audio generate, tts-1) → `Send Audio`(Telegram sendAudio, mp3)로 음성 회신. 아니면 기존 텍스트 회신.
-- 추가 자격증명 불필요(기존 OpenAI·Telegram 재사용). n8n 기본 Telegram 노드에 `sendVoice`가 없어 `sendAudio` 사용(음성 노트 버블 대신 오디오 플레이어로 표시).
+- 출력: `Reply Voice?`가 `isVoice`면 `TTS`(HTTP→OpenAI `/audio/speech`, tts-1, **opus**) → `Tag Audio`(파일명 `voice.ogg`) → `Send Voice`(HTTP→Telegram **sendVoice**)로 **음성 노트(voice note)** 회신. 아니면 텍스트 회신. 음성일 땐 짧은 구어체로 답하도록 프롬프트가 조정됨.
+- n8n 기본 Telegram 노드에 `sendVoice`가 없어 HTTP Request로 Telegram API를 직접 호출. 토큰은 워크플로우에 하드코딩하지 않고 **`TELEGRAM_BOT_TOKEN` 환경변수**로 주입(.env 참고). OpenAI TTS는 HTTP Request의 OpenAI 사전정의 자격증명을 사용.
 
 자세한 설계·함정은 [HANDOFF.md](HANDOFF.md) 참조.
 
