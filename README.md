@@ -9,6 +9,7 @@ n8n으로 만든 **텔레그램 개인 비서 봇**. 텔레그램으로 대화�
 - 💬 텔레그램 대화 + 대화 메모리(채팅별)
 - 📧 자연어 이메일 발송 ("OO한테 제목 본문으로 메일 보내줘")
 - 📄 문서 첨부 시 자동 인덱싱(PGVector) → 질문하면 문서 근거로 답변(RAG)
+- 🎙️ **음성 대화**: 음성 메시지를 보내면 Whisper로 전사 → 같은 파이프라인 처리 → 답변을 TTS 음성으로 회신 (텍스트로 보내면 텍스트로 답)
 
 | 워크플로우 | 역할 |
 |---|---|
@@ -96,6 +97,12 @@ Docker 없이 돌리던 원개발 환경. 자세한 절차·재시작 팁은 [HA
 - 문서 첨부 → `Insert to RAG`(PGVector insert, table `telegram_docs`)에 임베딩 저장(영구).
 - 텍스트 질문 → `Search RAG`(PGVector load, 유사도 top 5) → `Build Context`가 청크를 모아 AI Agent의 systemMessage `[참고 문서]`에 주입.
 - 임베딩은 insert/query 모두 OpenAI `text-embedding-3-small`(1536차원)로 **반드시 일치**.
+
+### 음성 대화 (STT/TTS)
+- 입력: 음성 메시지면 `Voice?` 분기 → `Download Voice` → `Transcribe Voice`(Whisper, ko) → `Prepare Input`이 전사 텍스트를 query로 정규화(`isVoice` 플래그 부여). 텍스트면 그대로 query.
+- 이후 RAG/AI 파이프라인은 입력 종류와 무관하게 동일.
+- 출력: `Reply Voice?`가 `isVoice`면 `TTS`(openAi audio generate, tts-1) → `Send Audio`(Telegram sendAudio, mp3)로 음성 회신. 아니면 기존 텍스트 회신.
+- 추가 자격증명 불필요(기존 OpenAI·Telegram 재사용). n8n 기본 Telegram 노드에 `sendVoice`가 없어 `sendAudio` 사용(음성 노트 버블 대신 오디오 플레이어로 표시).
 
 자세한 설계·함정은 [HANDOFF.md](HANDOFF.md) 참조.
 

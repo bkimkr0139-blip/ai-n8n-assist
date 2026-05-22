@@ -155,7 +155,9 @@
         "text": "📄 문서가 RAG에 등록되었습니다.",
         "additionalFields": {
           "appendAttribution": false
-        }
+        },
+        "resource": "message",
+        "operation": "sendMessage"
       },
       "id": "81046e9e-9ff6-4d0e-9897-26aeb378f2fd",
       "name": "Reply: Indexed",
@@ -235,7 +237,9 @@
         "text": "={{ $json.reply }}",
         "additionalFields": {
           "appendAttribution": false
-        }
+        },
+        "resource": "message",
+        "operation": "sendMessage"
       },
       "id": "664502f0-57ff-4905-9fda-dc8467103da4",
       "name": "Reply: Chat",
@@ -255,7 +259,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const raw = ($input.first().json.output ?? '').toString();\nlet parsed;\ntry {\n  let txt = raw.trim();\n  const m = txt.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(m ? m[0] : txt);\n} catch (e) {\n  parsed = { action: 'chat', reply: raw };\n}\nif (!parsed.action) parsed.action = 'chat';\nif (parsed.action === 'chat' && !parsed.reply) parsed.reply = raw;\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nreturn [{ json: { action: parsed.action, to: parsed.to || '', subject: parsed.subject || '', body: parsed.body || '', reply: parsed.reply || '', chatId } }];"
+        "jsCode": "const raw = ($input.first().json.output ?? '').toString();\nlet parsed;\ntry {\n  let txt = raw.trim();\n  const m = txt.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(m ? m[0] : txt);\n} catch (e) {\n  parsed = { action: 'chat', reply: raw };\n}\nif (!parsed.action) parsed.action = 'chat';\nif (parsed.action === 'chat' && !parsed.reply) parsed.reply = raw;\nconst bc = $('Build Context').first().json;\nconst chatId = bc.chatId;\nconst isVoice = bc.isVoice === true;\nreturn [{ json: { action: parsed.action, to: parsed.to || '', subject: parsed.subject || '', body: parsed.body || '', reply: parsed.reply || '', chatId, isVoice } }];"
       },
       "id": "7f61781f-2e5c-44b7-8ef2-d88c6da5de4a",
       "name": "Parse Response",
@@ -363,7 +367,9 @@
         "text": "={{ $json.result || '✉️ 메일 처리 완료' }}",
         "additionalFields": {
           "appendAttribution": false
-        }
+        },
+        "resource": "message",
+        "operation": "sendMessage"
       },
       "id": "df9ea482-705a-4ba1-b876-c61f58c4819e",
       "name": "Reply: Email",
@@ -385,7 +391,7 @@
       "parameters": {
         "mode": "load",
         "tableName": "telegram_docs",
-        "prompt": "={{ $('Telegram Trigger').item.json.message.text }}",
+        "prompt": "={{ $json.query }}",
         "topK": 5,
         "options": {}
       },
@@ -427,7 +433,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst chunks = [];\nfor (const it of items) {\n  const j = it.json || {};\n  let text = '';\n  if (j.document && typeof j.document.pageContent === 'string') text = j.document.pageContent;\n  else if (typeof j.pageContent === 'string') text = j.pageContent;\n  else if (typeof j.text === 'string') text = j.text;\n  if (text && text.trim()) chunks.push(text.trim());\n}\nconst context = chunks.length\n  ? chunks.map((c, i) => `[문서 ${i + 1}]\\n${c}`).join('\\n\\n')\n  : '(관련 등록 문서 없음)';\nconst trig = $('Telegram Trigger').first().json;\nconst userMessage = (trig.message && trig.message.text) ? trig.message.text : '';\nconst chatId = trig.message && trig.message.chat ? trig.message.chat.id : null;\nreturn [{ json: { userMessage, context, chatId } }];"
+        "jsCode": "const items = $input.all();\nconst chunks = [];\nfor (const it of items) {\n  const j = it.json || {};\n  let text = '';\n  if (j.document && typeof j.document.pageContent === 'string') text = j.document.pageContent;\n  else if (typeof j.pageContent === 'string') text = j.pageContent;\n  else if (typeof j.text === 'string') text = j.text;\n  if (text && text.trim()) chunks.push(text.trim());\n}\nconst context = chunks.length\n  ? chunks.map((c, i) => `[문서 ${i + 1}]\\n${c}`).join('\\n\\n')\n  : '(관련 등록 문서 없음)';\nconst prep = $('Prepare Input').first().json;\nconst userMessage = prep.query || '';\nconst chatId = prep.chatId;\nconst isVoice = prep.isVoice === true;\nreturn [{ json: { userMessage, context, chatId, isVoice } }];"
       },
       "id": "17214b29-c346-46ce-8b9a-d0d630d78d3d",
       "name": "Build Context",
@@ -437,6 +443,184 @@
         464,
         352
       ]
+    },
+    {
+      "id": "e8e5fc29-5009-443d-a622-ad07384b4b36",
+      "name": "Voice?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -208,
+        320
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "voice-check",
+              "leftValue": "={{ $json.message.voice }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "84652434-5e9e-4af2-b592-c55578f19a19",
+      "name": "Download Voice",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -208,
+        500
+      ],
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.voice.file_id }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram Bot"
+        }
+      },
+      "webhookId": "0d03ec4f-d791-41ba-8f8e-8d4cb0bb8e1d"
+    },
+    {
+      "id": "7fcd67a7-be40-4546-884f-e373ba26c604",
+      "name": "Transcribe Voice",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        -16,
+        500
+      ],
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "binaryPropertyName": "data",
+        "options": {
+          "language": "ko"
+        }
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAI 2026-05"
+        }
+      }
+    },
+    {
+      "id": "df84cbc4-c84f-4cbf-84e0-6dfc9e2bb22d",
+      "name": "Prepare Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        320
+      ],
+      "parameters": {
+        "jsCode": "const trig = $('Telegram Trigger').first().json;\nconst chatId = trig.message && trig.message.chat ? trig.message.chat.id : null;\nconst j = $input.first().json || {};\nlet query = '';\nlet isVoice = false;\nif (typeof j.text === 'string' && !j.message) {\n  query = j.text;\n  isVoice = true;\n} else {\n  query = (trig.message && trig.message.text) ? trig.message.text : '';\n  isVoice = false;\n}\nreturn [{ json: { query, isVoice, chatId } }];"
+      }
+    },
+    {
+      "id": "00cee54f-e463-4b6c-ad26-b9e0499a76bc",
+      "name": "Reply Voice?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1248,
+        1000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "isvoice-check",
+              "leftValue": "={{ $json.isVoice }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "0e7f3737-8906-40fa-ac8c-4597f787e57f",
+      "name": "TTS",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        1456,
+        1080
+      ],
+      "parameters": {
+        "resource": "audio",
+        "operation": "generate",
+        "model": "tts-1",
+        "input": "={{ $json.reply }}",
+        "voice": "nova",
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAI 2026-05"
+        }
+      }
+    },
+    {
+      "id": "b246e602-b57a-4f19-a749-21f670ca66a7",
+      "name": "Send Audio",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1664,
+        1080
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAudio",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram Bot"
+        }
+      },
+      "webhookId": "c1efa521-2634-4407-8651-6451c2643bfd"
     }
   ],
   "connections": {
@@ -462,7 +646,7 @@
         ],
         [
           {
-            "node": "Search RAG",
+            "node": "Voice?",
             "type": "main",
             "index": 0
           }
@@ -579,7 +763,7 @@
         ],
         [
           {
-            "node": "Reply: Chat",
+            "node": "Reply Voice?",
             "type": "main",
             "index": 0
           }
@@ -624,6 +808,86 @@
         [
           {
             "node": "AI Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice?": {
+      "main": [
+        [
+          {
+            "node": "Download Voice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Voice": {
+      "main": [
+        [
+          {
+            "node": "Transcribe Voice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe Voice": {
+      "main": [
+        [
+          {
+            "node": "Prepare Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Input": {
+      "main": [
+        [
+          {
+            "node": "Search RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Voice?": {
+      "main": [
+        [
+          {
+            "node": "TTS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TTS": {
+      "main": [
+        [
+          {
+            "node": "Send Audio",
             "type": "main",
             "index": 0
           }

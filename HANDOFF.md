@@ -47,18 +47,25 @@ tool을 쓰지 말 것:
 
 ## 현재 워크플로우
 
-### telegram_bot (메인) — `workflows/telegram_bot.json` (19 노드)
+### telegram_bot (메인) — `workflows/telegram_bot.json` (26 노드)
 ```
 Telegram Trigger → Document Attached?(IF)
   ├─ (문서첨부) → Download File → Insert to RAG(PGVector insert) → Reply: Indexed
-  └─ (텍스트)   → Search RAG(PGVector load, topK5) → Build Context(Code)
-                    → AI Assistant(JSON출력, 메모리) → Parse Response(Code) → Is Email?(IF)
-                        ├ email → Send Email Sub(Execute Workflow) → Reply: Email
-                        └ chat  → Reply: Chat
+  └─ (else)     → Voice?(IF)
+        ├─ (음성)   → Download Voice → Transcribe Voice(Whisper) → Prepare Input
+        └─ (텍스트) → Prepare Input
+                          → Search RAG(PGVector load, topK5) → Build Context(Code)
+                          → AI Assistant(JSON출력, 메모리) → Parse Response(Code) → Is Email?(IF)
+                              ├ email → Send Email Sub(Execute Workflow) → Reply: Email
+                              └ chat  → Reply Voice?(IF)
+                                          ├ (음성입력) → TTS → Send Audio  (음성 회신)
+                                          └ (텍스트)   → Reply: Chat       (텍스트 회신)
 ```
 - AI Assistant: OpenAI Chat Model(gpt-4o-mini) + Conversation Memory(채팅ID별 10턴). tool 없음.
-- RAG 검색은 `Embeddings (Query)`가 `Search RAG`에 ai_embedding으로 연결. `Build Context`가 검색 청크를 모아 `{userMessage, context, chatId}`로 출력 → AI Assistant의 `text`=`{{ $json.userMessage }}`, systemMessage `[참고 문서]`=`{{ $json.context }}`.
-- `Search RAG`는 `alwaysOutputData:true` + `onError:continueRegularOutput` → 검색 0건/테이블 미존재여도 봇이 멈추지 않음.
+- `Prepare Input`(Code): 음성 전사(Whisper 출력 `.text`)와 텍스트(`message.text`)를 `{query, isVoice, chatId}`로 정규화해 두 입력 경로를 합류시킴. **주의: Code 노드는 "Run Once for All Items" 모드라 `$json` 못 씀 → `$input.first().json` 사용.**
+- RAG 검색: `Embeddings (Query)`→`Search RAG`(ai_embedding). `Build Context`가 청크+`Prepare Input`의 query/isVoice/chatId를 모아 `{userMessage, context, chatId, isVoice}` 출력 → AI Assistant `text`=`{{ $json.userMessage }}`, systemMessage `[참고 문서]`=`{{ $json.context }}`(systemMessage는 `=`로 시작해야 평가됨!).
+- `Search RAG`: `alwaysOutputData:true` + `onError:continueRegularOutput` → 검색 0건/테이블 미존재여도 안 멈춤.
+- 음성: `Transcribe Voice`/`TTS`는 `@n8n/n8n-nodes-langchain.openAi`(typeVersion 2.3, resource audio, transcribe/generate). 바이너리는 모두 `data` 프로퍼티로 연결. n8n 기본 Telegram 노드에 `sendVoice`가 없어 `sendAudio`(mp3) 사용.
 
 ### send_email_tool (서브) — `workflows/send_email_tool.json` (4 노드)
 ```
