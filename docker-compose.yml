@@ -54,6 +54,9 @@ services:
       # n8n 기본 Telegram 노드에 sendVoice가 없어 HTTP Request로 호출하며, 토큰을 워크플로우에
       # 하드코딩하지 않고 이 환경변수로 주입한다. (BotFather 토큰과 동일)
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      # 표현식에서 $env 접근 허용 (Send Voice 노드가 {{ $env.TELEGRAM_BOT_TOKEN }} 사용).
+      # n8n 기본값은 차단(denied)이라 명시적으로 false 설정 필요.
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
     volumes:
       - n8n_data:/home/node/.n8n
       - ./workflows:/workflows:ro

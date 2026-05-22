@@ -743,7 +743,7 @@
         "resource": "message",
         "operation": "sendMessage",
         "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "=🎙️ 실시간 음성 대화 모드입니다. 아래 링크를 열고 [음성 대화 시작]을 누르세요. 그 뒤엔 마이크를 누를 필요 없이 계속 말하면 됩니다.\n\n{{ $env.WEBHOOK_URL }}/webhook/voice",
+        "text": "🎙️ 실시간 음성 대화 모드입니다. 아래 링크를 열고 [음성 대화 시작]을 누르세요. 그 뒤엔 마이크를 누를 필요 없이 계속 말하면 됩니다.\n\nhttps://YOUR-N8N-PUBLIC-URL/webhook/voice",
         "additionalFields": {
           "appendAttribution": false
         }
