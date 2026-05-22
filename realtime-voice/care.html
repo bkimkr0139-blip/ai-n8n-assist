@@ -34,18 +34,24 @@
 </head>
 <body>
   <h1>💚 어르신 돌봄 상담</h1>
-  <div class="sub">따뜻한 생활지원사와 음성으로 안부를 나눠요. 버튼을 누르고 편하게 말씀하세요.</div>
+  <div class="sub">밝고 친절한 생활지원사와 음성으로 안부를 나눠요. 버튼을 누르고 편하게 말씀하세요.</div>
 
   <div class="card">
     <input id="key" type="password" placeholder="OpenAI API Key (sk-...) — 처음 한 번만" autocomplete="off" />
     <div class="row" style="margin-top:10px">
       <label>목소리</label>
       <select id="voice">
-        <option value="coral">coral (여성·따뜻)</option>
-        <option value="shimmer">shimmer (여성·부드러움)</option>
-        <option value="sage">sage (여성)</option>
+        <option value="shimmer">shimmer (밝은 여성)</option>
+        <option value="coral">coral (따뜻한 여성)</option>
+        <option value="sage">sage (차분한 여성)</option>
+        <option value="alloy">alloy (중성)</option>
         <option value="ballad">ballad</option>
-        <option value="alloy">alloy</option>
+      </select>
+      <label>속도</label>
+      <select id="speed">
+        <option value="1.0">보통</option>
+        <option value="1.15" selected>조금 빠름</option>
+        <option value="1.3">빠름</option>
       </select>
     </div>
     <button id="start" class="bigbtn">▶ 통화 시작</button>
@@ -71,19 +77,21 @@
     const MEM_KEY = 'care_memory_v1';
 
     const PERSONA =
-      '당신은 어르신을 돌보는 따뜻하고 친절한 여성 생활지원사(돌봄 종사자)입니다. ' +
-      '항상 정중한 존댓말로, 천천히 또박또박, 부드럽고 다정하게 말합니다. ' +
-      '어르신의 안부(식사, 수면, 건강, 통증, 약 복용, 기분, 외로움)를 한 번에 하나씩 자연스럽게 여쭙고 공감하며 경청합니다. ' +
-      '쉽고 짧은 문장으로 말하고, 어르신이 편안하시도록 날씨·가족·옛이야기 같은 여담도 나눕니다. ' +
+      '당신은 어르신을 돌보는 30~40대의 밝고 친절한 여성 생활지원사(돌봄 종사자)입니다. ' +
+      '목소리는 환하고 다정하며, 너무 느리지 않게 경쾌하고 또렷한 속도로 말합니다. 항상 정중한 존댓말을 씁니다. ' +
+      '어르신의 안부(식사, 수면, 건강, 통증, 약 복용, 기분, 외로움)를 한 번에 하나씩 자연스럽게 여쭙고, 밝게 공감하며 경청합니다. ' +
+      '짧고 쉬운 문장으로 대화하듯 말하고, 날씨·가족·옛이야기 같은 즐거운 여담도 곁들입니다. ' +
       '걱정되는 점(건강 악화, 우울, 위급 신호)이 있으면 부드럽게 더 여쭤보고 안심시키되, 의료 진단·처방은 하지 말고 ' +
-      '필요하면 가족이나 담당 선생님께 알리시도록 권합니다. 답변은 1~3문장으로 따뜻하고 간결하게.';
+      '필요하면 가족이나 담당 선생님께 알리시도록 권합니다. 답변은 1~2문장으로 짧고 경쾌하게, 즉시 대답합니다. ' +
+      '어르신이 통화를 마치고 싶어 하시면(예: 그만/끊을게/이만/들어가볼게/수고했어요) 길게 붙잡지 말고 ' +
+      '밝고 따뜻하게 짧은 작별 인사(예: "네 어르신, 오늘도 건강하게 지내세요. 또 연락드릴게요!")만 드리고 마무리합니다.';
 
     const $ = (id) => document.getElementById(id);
-    const els = { key:$('key'), voice:$('voice'), start:$('start'), stop:$('stop'), status:$('status'),
+    const els = { key:$('key'), voice:$('voice'), speed:$('speed'), start:$('start'), stop:$('stop'), status:$('status'),
                   log:$('log'), audio:$('audio'), memstate:$('memstate'), memtext:$('memtext'), clearmem:$('clearmem') };
     els.key.value = localStorage.getItem('oai_key') || '';
 
-    let pc=null, dc=null, micStream=null, aiBuf='', turns=[], pastMem='';
+    let pc=null, dc=null, micStream=null, aiBuf='', turns=[], pastMem='', endRequested=false, ending=false;
 
     const setStatus = (s)=> els.status.textContent = s;
     function add(cls, text){ const d=document.createElement('div'); d.className='msg '+cls; d.textContent=text; els.log.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'end'}); }
@@ -93,25 +101,28 @@
     refreshMemUI();
     els.clearmem.onclick = ()=>{ if(confirm('저장된 어르신 메모를 지울까요?')){ try{localStorage.removeItem(MEM_KEY);}catch{}; refreshMemUI(); } };
 
+    const END_WORDS = ['끊','그만','이만','들어가','안녕히','수고했','수고하','잘 있','다음에 봐','전화 그만'];
+    function isEndIntent(t){ return END_WORDS.some(w => t.indexOf(w) >= 0); }
+
     function buildInstructions(){
       pastMem = loadMem();
       let ins = PERSONA;
       if (pastMem) ins += '\n\n[이 어르신과의 이전 통화 메모]\n' + pastMem +
-        '\n\n위 메모를 자연스럽게 활용하세요. 지난번에 하신 이야기(건강, 기분, 가족, 약속 등)를 기억하는 듯 먼저 안부를 여쭤보며 친근하게 이어가세요. 메모를 그대로 읽지 말고 대화에 녹이세요.';
-      else ins += '\n\n(첫 통화입니다. 따뜻하게 자기소개를 하고 성함과 오늘 안부를 부드럽게 여쭤보세요.)';
+        '\n\n통화를 시작하면 먼저 밝게 인사하고, 위 메모에서 한 가지를 콕 집어("지난번 무릎은 좀 어떠세요?"처럼) 안부를 여쭤보며 자연스럽게 이어가세요. 메모를 그대로 읽지 말고 대화에 녹이세요.';
+      else ins += '\n\n(첫 통화입니다. 밝게 자기소개를 하고 성함과 오늘 안부를 따뜻하게 여쭤보세요.)';
       return ins;
     }
     function sessionConfig(){
       return { type:'session.update', session:{ type:'realtime', instructions: buildInstructions(),
-        audio:{ input:{ transcription:{ model:'whisper-1' }, turn_detection:{ type:'server_vad', silence_duration_ms:1100, prefix_padding_ms:300 } },
-                output:{ voice: els.voice.value } } } };
+        audio:{ input:{ transcription:{ model:'whisper-1' }, turn_detection:{ type:'server_vad', threshold:0.5, prefix_padding_ms:200, silence_duration_ms:500 } },
+                output:{ voice: els.voice.value, speed: parseFloat(els.speed.value) } } } };
     }
 
     async function start(){
       const key = els.key.value.trim();
       if(!key){ alert('OpenAI API Key를 입력해 주세요.'); return; }
       localStorage.setItem('oai_key', key);
-      els.start.disabled = true; turns = [];
+      els.start.disabled = true; turns = []; endRequested = false; ending = false;
       try { setStatus('🎤 마이크 권한을 허용해 주세요...'); micStream = await navigator.mediaDevices.getUserMedia({audio:true}); }
       catch(e){ setStatus('❌ 마이크 권한이 거부되었습니다.'); els.start.disabled=false; return; }
 
@@ -119,14 +130,20 @@
       pc.ontrack = (e)=> els.audio.srcObject = e.streams[0];
       micStream.getTracks().forEach(t=> pc.addTrack(t, micStream));
       dc = pc.createDataChannel('oai-events');
-      dc.onopen = ()=>{ setStatus('🟢 연결됐어요 — 편하게 말씀하세요'); try{ dc.send(JSON.stringify(sessionConfig())); }catch{}; add('sys', pastMem ? '이전 대화를 기억하고 있어요. 안부를 나눠요.' : '첫 통화예요. 따뜻하게 인사드릴게요.'); };
+      dc.onopen = ()=>{
+        setStatus('🟢 연결됐어요 — 편하게 말씀하세요');
+        try{ dc.send(JSON.stringify(sessionConfig())); }catch{}
+        try{ dc.send(JSON.stringify({ type:'response.create' })); }catch{}   // 도우미가 먼저 밝게 인사
+        add('sys', pastMem ? '이전 대화를 기억하고 있어요. 안부를 나눠요.' : '첫 통화예요. 밝게 인사드릴게요.');
+      };
       dc.onmessage = (e)=>{ let ev; try{ ev=JSON.parse(e.data); }catch{ return; } const t=ev.type||'';
-        if(t.indexOf('input_audio_transcription')>=0 && t.endsWith('.completed')){ if(ev.transcript){ const s=ev.transcript.trim(); add('me','🗣️ '+s); turns.push('어르신: '+s); } }
+        if(t.indexOf('input_audio_transcription')>=0 && t.endsWith('.completed')){ if(ev.transcript){ const s=ev.transcript.trim(); add('me','🗣️ '+s); turns.push('어르신: '+s); if(isEndIntent(s)) endRequested = true; } }
         else if(t.endsWith('audio_transcript.delta')){ aiBuf += (ev.delta||''); }
-        else if(t.endsWith('audio_transcript.done')){ const s=(ev.transcript||aiBuf).trim(); add('ai','💚 '+s); turns.push('도우미: '+s); aiBuf=''; }
+        else if(t.endsWith('audio_transcript.done')){ const s=(ev.transcript||aiBuf).trim(); add('ai','💚 '+s); turns.push('도우미: '+s); aiBuf='';
+          if(endRequested && !ending){ ending=true; const wait=Math.max(2500, s.length*130); setStatus('통화를 마무리하는 중이에요...'); setTimeout(()=>stop(), wait); } }
         else if(t==='error'){ add('sys','⚠️ '+JSON.stringify(ev.error||ev)); }
       };
-      pc.onconnectionstatechange = ()=>{ if(['failed','disconnected','closed'].includes(pc.connectionState)) setStatus('통화가 종료되었어요 ('+pc.connectionState+')'); };
+      pc.onconnectionstatechange = ()=>{ if(['failed','disconnected','closed'].includes(pc.connectionState) && !ending) setStatus('통화가 종료되었어요 ('+pc.connectionState+')'); };
 
       try{
         const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
@@ -148,13 +165,12 @@
           body: JSON.stringify({ model:'gpt-4o-mini', temperature:0.3, messages:[{role:'user', content:prompt}] }) });
         if(r.ok){ const d=await r.json(); const m=d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content; if(m){ saveMem(m.trim()); add('sys','📓 이번 대화를 기억에 저장했어요.'); return; } }
       }catch{}
-      // 요약 실패 시: 최근 대화 원문 일부라도 저장
       saveMem((pastMem? pastMem+'\n':'')+ '[최근통화]\n'+ turns.slice(-12).join('\n'));
     }
 
     function cleanup(){ try{if(dc)dc.close();}catch{} try{if(pc)pc.close();}catch{} try{if(micStream)micStream.getTracks().forEach(t=>t.stop());}catch{} pc=dc=micStream=null; els.start.disabled=false; els.stop.disabled=true; }
     async function stop(){ const key=els.key.value.trim(); setStatus('통화를 정리하고 기억에 저장하는 중...'); cleanup(); await updateMemory(key); setStatus('■ 통화가 끝났어요. 수고하셨습니다.'); }
-    els.start.onclick = start; els.stop.onclick = stop;
+    els.start.onclick = start; els.stop.onclick = ()=>{ ending=true; stop(); };
   </script>
 </body>
 </html>
