@@ -13,8 +13,8 @@
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.3,
       "position": [
-        -800,
-        -176
+        -1328,
+        -656
       ],
       "webhookId": "76af2d28-63bd-4667-b830-e393fcc4c0ad",
       "credentials": {
@@ -54,8 +54,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -512,
-        -176
+        -1088,
+        -624
       ]
     },
     {
@@ -69,8 +69,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        304,
-        -144
+        -384,
+        -656
       ],
       "webhookId": "ccf7150e-b89f-4a28-9403-440ca94afdb3",
       "credentials": {
@@ -91,8 +91,8 @@
       "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
       "typeVersion": 1.3,
       "position": [
-        752,
-        -96
+        80,
+        -624
       ],
       "credentials": {
         "postgres": {
@@ -110,8 +110,8 @@
       "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
       "typeVersion": 1.2,
       "position": [
-        896,
-        272
+        208,
+        -144
       ],
       "credentials": {
         "openAiApi": {
@@ -131,8 +131,8 @@
       "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
       "typeVersion": 1.1,
       "position": [
-        1072,
-        256
+        544,
+        -320
       ]
     },
     {
@@ -145,8 +145,8 @@
       "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
       "typeVersion": 1,
       "position": [
-        1104,
-        464
+        816,
+        0
       ]
     },
     {
@@ -162,8 +162,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1440,
-        80
+        848,
+        -608
       ],
       "webhookId": "8bc69b91-cd9f-48f0-84b1-0c8c7f8590fe",
       "credentials": {
@@ -178,7 +178,7 @@
         "promptType": "define",
         "text": "={{ $json.userMessage }}",
         "options": {
-          "systemMessage": "=당신은 BC Kim의 개인 비서입니다.\n\n아래 [참고 문서]에는 사용자가 시스템에 등록·보유한 문서에서 이번 질문과 관련해 검색된 실제 내용이 들어 있습니다. 이것은 사용자가 이미 등록한 문서 그 자체입니다.\n- [참고 문서]에 내용이 있으면, 반드시 그 내용을 근거로 질문에 직접·구체적으로 답하세요. 절대 \"문서를 볼 수 없다\", \"등록된 문서 내용을 확인할 수 없다\"고 답하지 마세요.\n- 어떤 문서가 등록됐는지·무슨 내용인지 묻는 경우에도, [참고 문서]를 보고 어떤 문서가 있는지와 그 요지를 설명하세요. 질문의 문서 이름이 조금 달라도 [참고 문서]와 같은 문서로 판단되면 그것을 근거로 답하세요.\n- [참고 문서]가 정확히 \"(관련 등록 문서 없음)\"일 때만 관련 문서를 찾지 못했다고 안내하세요.\n\n[참고 문서]\n{{ $json.context }}\n\n반드시 아래 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트는 절대 출력하지 마세요.\n\n이메일 발송 요청이고 받는사람/제목/본문이 모두 명확하면:\n{\"action\":\"email\",\"to\":\"받는주소\",\"subject\":\"제목\",\"body\":\"본문\"}\n\n그 외 모든 경우(일반 대화, 문서 기반 질의응답, 이메일 정보 부족 등):\n{\"action\":\"chat\",\"reply\":\"사용자에게 보낼 한국어 답변\"}\n\n이메일 정보가 부족하면 action을 chat으로 하고 reply에 무엇이 필요한지 물어보세요.\n\n{{ $json.isVoice ? '사용자가 방금 음성 메시지로 말했고, 그 음성은 이미 정확한 텍스트로 변환되어 위 질문으로 전달되었습니다. 당신의 reply도 자동으로 음성으로 변환되어 사용자에게 들립니다. 그러므로 음성을 들을 수 없다거나 음성 대화를 지원하지 않는다거나 텍스트로 다시 보내달라는 말은 절대 하지 마세요. 들은 내용에 곱바로 자연스럽게 답하고 reply는 2~3문장 이내로 짧게 작성하세요.' : '' }}\n\n{{ $json.isVoice ? '지금 사용자는 음성으로 대화 중입니다. reply는 2~3문장 이내의 짧고 자연스러운 구어체로 작성하세요.' : '' }}"
+          "systemMessage": "=당신은 BC Kim의 개인 비서입니다.\n\n아래 [참고 문서]에는 사용자가 시스템에 등록·보유한 문서에서 이번 질문과 관련해 검색된 실제 내용이 들어 있습니다. 이것은 사용자가 이미 등록한 문서 그 자체입니다.\n- [참고 문서]에 내용이 있으면, 반드시 그 내용을 근거로 질문에 직접·구체적으로 답하세요. 절대 \"문서를 볼 수 없다\", \"등록된 문서 내용을 확인할 수 없다\"고 답하지 마세요.\n- 어떤 문서가 등록됐는지·무슨 내용인지 묻는 경우에도, [참고 문서]를 보고 어떤 문서가 있는지와 그 요지를 설명하세요. 질문의 문서 이름이 조금 달라도 [참고 문서]와 같은 문서로 판단되면 그것을 근거로 답하세요.\n- [참고 문서]가 정확히 \"(관련 등록 문서 없음)\"일 때만 관련 문서를 찾지 못했다고 안내하세요.\n\n[참고 문서]\n{{ $json.context }}\n\n반드시 아래 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트는 절대 출력하지 마세요.\n\n이메일 발송 요청이고 받는사람/제목/본문이 모두 명확하면:\n{\"action\":\"email\",\"to\":\"받는주소\",\"subject\":\"제목\",\"body\":\"본문\"}\n\n날씨 질문이고 지역이 분명하면(한국 지명은 영문으로 변환):\n{\"action\":\"weather\",\"location\":\"Seoul\"}\n날씨 질문인데 지역이 불분명하면 action을 chat으로 하고 reply에 \"어느 지역 날씨를 알려드릴까요?\"라고 되물으세요.\n\n그 외 모든 경우(일반 대화, 문서 기반 질의응답, 이메일 정보 부족 등):\n{\"action\":\"chat\",\"reply\":\"사용자에게 보낼 한국어 답변\"}\n\n이메일 정보가 부족하면 action을 chat으로 하고 reply에 무엇이 필요한지 물어보세요.\n\n{{ $json.isVoice ? '사용자가 방금 음성 메시지로 말했고, 그 음성은 이미 정확한 텍스트로 변환되어 위 질문으로 전달되었습니다. 당신의 reply도 자동으로 음성으로 변환되어 사용자에게 들립니다. 그러므로 음성을 들을 수 없다거나 음성 대화를 지원하지 않는다거나 텍스트로 다시 보내달라는 말은 절대 하지 마세요. 들은 내용에 곱바로 자연스럽게 답하고 reply는 2~3문장 이내로 짧게 작성하세요.' : '' }}\n\n{{ $json.isVoice ? '지금 사용자는 음성으로 대화 중입니다. reply는 2~3문장 이내의 짧고 자연스러운 구어체로 작성하세요.' : '' }}"
         }
       },
       "id": "ba0f4135-3f22-456b-ae77-f555536f81f8",
@@ -255,15 +255,15 @@
     },
     {
       "parameters": {
-        "jsCode": "const raw = ($input.first().json.output ?? '').toString();\nlet parsed;\ntry {\n  let txt = raw.trim();\n  const m = txt.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(m ? m[0] : txt);\n} catch (e) {\n  parsed = { action: 'chat', reply: raw };\n}\nif (!parsed.action) parsed.action = 'chat';\nif (parsed.action === 'chat' && !parsed.reply) parsed.reply = raw;\nconst bc = $('Build Context').first().json;\nconst chatId = bc.chatId;\nconst isVoice = bc.isVoice === true;\nreturn [{ json: { action: parsed.action, to: parsed.to || '', subject: parsed.subject || '', body: parsed.body || '', reply: parsed.reply || '', chatId, isVoice } }];"
+        "jsCode": "const raw = ($input.first().json.output ?? '').toString();\nlet parsed;\ntry {\n  let txt = raw.trim();\n  const m = txt.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(m ? m[0] : txt);\n} catch (e) {\n  parsed = { action: 'chat', reply: raw };\n}\nif (!parsed.action) parsed.action = 'chat';\nif (parsed.action === 'chat' && !parsed.reply) parsed.reply = raw;\nconst bc = $('Build Context').first().json;\nconst chatId = bc.chatId;\nconst isVoice = bc.isVoice === true;\nreturn [{ json: { action: parsed.action, to: parsed.to || '', subject: parsed.subject || '', body: parsed.body || '', reply: parsed.reply || '', location: parsed.location || '', chatId, isVoice } }];"
       },
       "id": "7f61781f-2e5c-44b7-8ef2-d88c6da5de4a",
       "name": "Parse Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        816,
-        704
+        800,
+        640
       ]
     },
     {
@@ -353,8 +353,8 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
       "position": [
-        1280,
-        560
+        1120,
+        384
       ]
     },
     {
@@ -394,8 +394,8 @@
       "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
       "typeVersion": 1.3,
       "position": [
-        224,
-        400
+        192,
+        336
       ],
       "alwaysOutputData": true,
       "credentials": {
@@ -468,8 +468,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -464,
-        352
+        -624,
+        368
       ]
     },
     {
@@ -483,8 +483,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        -320,
-        112
+        -336,
+        96
       ],
       "webhookId": "0d03ec4f-d791-41ba-8f8e-8d4cb0bb8e1d",
       "credentials": {
@@ -507,8 +507,8 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.3,
       "position": [
-        -112,
-        112
+        -144,
+        96
       ],
       "credentials": {
         "openAiApi": {
@@ -526,8 +526,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        304,
-        160
+        -320,
+        528
       ]
     },
     {
@@ -644,21 +644,13 @@
       ]
     },
     {
-      "id": "9d224cd3-8dff-485c-b424-d16b9ad1dd13",
-      "name": "Care Admin?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -512,
-        -560
-      ],
       "parameters": {
         "conditions": {
           "options": {
-            "version": 2,
-            "leftValue": "",
             "caseSensitive": false,
-            "typeValidation": "loose"
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
           },
           "conditions": [
             {
@@ -719,50 +711,48 @@
           "combinator": "or"
         },
         "options": {}
-      }
+      },
+      "id": "9d224cd3-8dff-485c-b424-d16b9ad1dd13",
+      "name": "Care Admin?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -992,
+        -336
+      ]
     },
     {
-      "id": "28c45ea1-9ce8-468d-bd90-a357a577b511",
-      "name": "Reply: Admin Link",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        -220,
-        -640
-      ],
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
         "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
         "text": "⚙️ 돌봄 통화 설정(관리자) 모드입니다. 아래를 열고 음성으로 말투·추임새·안내사항·맥락관리를 설정하세요. 저장하면 어르신 통화(돌봄 모드)에 바로 반영됩니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/care-admin.html",
         "additionalFields": {
           "appendAttribution": false
         }
       },
+      "id": "28c45ea1-9ce8-468d-bd90-a357a577b511",
+      "name": "Reply: Admin Link",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -704,
+        -480
+      ],
+      "webhookId": "c49cdcaf-5d04-4790-a8a6-b94174feb392",
       "credentials": {
         "telegramApi": {
           "id": "",
           "name": "Telegram Bot"
         }
-      },
-      "webhookId": "c49cdcaf-5d04-4790-a8a6-b94174feb392"
+      }
     },
     {
-      "id": "f5f43627-b45b-4d85-a261-0bc5f5d2660d",
-      "name": "Care Mode?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -512,
-        -360
-      ],
       "parameters": {
         "conditions": {
           "options": {
-            "version": 2,
-            "leftValue": "",
             "caseSensitive": false,
-            "typeValidation": "loose"
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
           },
           "conditions": [
             {
@@ -814,50 +804,48 @@
           "combinator": "or"
         },
         "options": {}
-      }
+      },
+      "id": "f5f43627-b45b-4d85-a261-0bc5f5d2660d",
+      "name": "Care Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -928,
+        -48
+      ]
     },
     {
-      "id": "f7895db1-df59-4752-807e-1da3b0ea4f0f",
-      "name": "Reply: Care Link",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        -220,
-        -420
-      ],
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
         "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
         "text": "💚 어르신 돌봄 상담 모드입니다. 아래를 열고 [통화 시작]을 누른 뒤 편하게 말씀하세요. 따뜻한 생활지원사가 안부를 여쾰보고 지난 대화도 기억해 이어갑니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/care.html",
         "additionalFields": {
           "appendAttribution": false
         }
       },
+      "id": "f7895db1-df59-4752-807e-1da3b0ea4f0f",
+      "name": "Reply: Care Link",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -416,
+        -400
+      ],
+      "webhookId": "9fe2df2a-5830-4ce1-bf65-14bac814e2d4",
       "credentials": {
         "telegramApi": {
           "id": "",
           "name": "Telegram Bot"
         }
-      },
-      "webhookId": "9fe2df2a-5830-4ce1-bf65-14bac814e2d4"
+      }
     },
     {
-      "id": "e87fefa5-76f8-4f29-9d77-2d4a291fd556",
-      "name": "Voice Mode?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -512,
-        -160
-      ],
       "parameters": {
         "conditions": {
           "options": {
-            "version": 2,
-            "leftValue": "",
             "caseSensitive": false,
-            "typeValidation": "loose"
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
           },
           "conditions": [
             {
@@ -900,59 +888,156 @@
           "combinator": "or"
         },
         "options": {}
-      }
+      },
+      "id": "e87fefa5-76f8-4f29-9d77-2d4a291fd556",
+      "name": "Voice Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -912,
+        208
+      ]
     },
     {
-      "id": "6782a7af-9092-4492-99fe-16b24db96097",
-      "name": "Reply: App Link",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        -220,
-        -200
-      ],
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
         "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
         "text": "🎙️ 실시간 음성 대화 모드입니다. 아래를 열고 [음성 대화 시작]을 누르세요. OpenAI 키는 처음 한 번만 입력하면 됩니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/",
         "additionalFields": {
           "appendAttribution": false
         }
       },
+      "id": "6782a7af-9092-4492-99fe-16b24db96097",
+      "name": "Reply: App Link",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -496,
+        -48
+      ],
+      "webhookId": "0d499bde-bdb1-423e-b01b-84084d260beb",
       "credentials": {
         "telegramApi": {
           "id": "",
           "name": "Telegram Bot"
         }
-      },
-      "webhookId": "0d499bde-bdb1-423e-b01b-84084d260beb"
+      }
     },
     {
-      "id": "5fbc6c5d-1a22-4700-b5ec-0cc5aa70837a",
-      "name": "Reply: Heard",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        -112,
-        320
-      ],
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
         "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
         "text": "=🎤 {{ $json.text }}",
         "additionalFields": {
           "appendAttribution": false
         }
       },
+      "id": "5fbc6c5d-1a22-4700-b5ec-0cc5aa70837a",
+      "name": "Reply: Heard",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        160,
+        64
+      ],
+      "webhookId": "d563389a-ed95-4b21-9605-ef69b7cad1bb",
       "credentials": {
         "telegramApi": {
           "id": "",
           "name": "Telegram Bot"
         }
+      }
+    },
+    {
+      "id": "5c06506a-6d95-4332-9c99-a18cb47fe1a2",
+      "name": "Is Weather?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1180,
+        1280
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "w",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "weather",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "735fa1ce-c2f4-4cd1-b224-8737d7b2103c",
+      "name": "Prep Weather",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        1360
+      ],
+      "parameters": {
+        "jsCode": "const j=$input.first().json;\nconst M={'서울':'Seoul','부산':'Busan','대구':'Daegu','인천':'Incheon','광주':'Gwangju','대전':'Daejeon','울산':'Ulsan','세종':'Sejong','수원':'Suwon','성남':'Seongnam','고양':'Goyang','용인':'Yongin','부천':'Bucheon','춘천':'Chuncheon','강릉':'Gangneung','원주':'Wonju','청주':'Cheongju','천안':'Cheonan','전주':'Jeonju','목포':'Mokpo','여수':'Yeosu','순천':'Suncheon','포항':'Pohang','경주':'Gyeongju','구미':'Gumi','창원':'Changwon','진주':'Jinju','김해':'Gimhae','제주':'Jeju','서귀포':'Seogwipo','경기':'Suwon','강원':'Chuncheon','충북':'Cheongju','충남':'Cheonan','전북':'Jeonju','전남':'Mokpo','경북':'Pohang','경남':'Changwon'};\nlet loc=(j.location||'').trim();\nconst k=loc.replace(/(특별시|광역시|특별자치시|특별자치도|자치시|자치도|시|도|군|구)$/,'');\nconst q=M[loc]||M[k]||loc;\nreturn [{ json: { q, region: loc, isVoice: j.isVoice===true, chatId: j.chatId } }];"
+      }
+    },
+    {
+      "id": "bffa39e8-57df-4d02-a5d8-0b20a8d00f9b",
+      "name": "Get Geo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        1360
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://geocoding-api.open-meteo.com/v1/search?count=1&language=ko&name={{ $json.q }}",
+        "options": {}
       },
-      "webhookId": "d563389a-ed95-4b21-9605-ef69b7cad1bb"
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "id": "f99b167e-1374-4c24-8cb5-05198fe66475",
+      "name": "Get Weather",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1720,
+        1360
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.open-meteo.com/v1/forecast?timezone=Asia%2FSeoul&forecast_days=1&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&latitude={{ $json.results[0].latitude }}&longitude={{ $json.results[0].longitude }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "id": "3acac96c-c3d2-4fa1-95eb-237a719d94a8",
+      "name": "Format Weather",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        1360
+      ],
+      "parameters": {
+        "jsCode": "const w=$input.first().json;\nlet prep={},pr={};\ntry{prep=$('Prep Weather').first().json;}catch(e){}\ntry{pr=$('Parse Response').first().json;}catch(e){}\nconst region=(prep.region||'').trim()||'요청하신 지역';\nfunction wko(c){ if(c===0)return'맑음'; if(c<=2)return'대체로 맑음'; if(c===3)return'흐림'; if(c<=48)return'안개'; if(c<=57)return'이슬비'; if(c<=67)return'비'; if(c<=77)return'눈'; if(c<=82)return'소나기'; if(c<=86)return'눈 소나기'; return'천둥번개'; }\nconst c=w&&w.current, d=w&&w.daily;\nlet reply;\nif(c&&typeof c.temperature_2m==='number'&&d){ reply=region+' 현재 '+Math.round(c.temperature_2m)+'도, '+wko(c.weather_code)+'이에요. 오늘 최고 '+Math.round(d.temperature_2m_max[0])+'도 최저 '+Math.round(d.temperature_2m_min[0])+'도, 강수확률은 '+d.precipitation_probability_max[0]+'%입니다.'; }\nelse { reply=region+' 날씨 정보를 찾지 못했어요. 큰 도시 이름으로 다시 말씀해 주시겠어요?'; }\nreturn [{ json: { action:'chat', reply, isVoice: pr.isVoice===true, chatId: pr.chatId } }];"
+      }
     }
   ],
   "connections": {
@@ -1095,7 +1180,7 @@
         ],
         [
           {
-            "node": "Reply Voice?",
+            "node": "Is Weather?",
             "type": "main",
             "index": 0
           }
@@ -1290,6 +1375,68 @@
         [
           {
             "node": "Voice?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Weather?": {
+      "main": [
+        [
+          {
+            "node": "Prep Weather",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Voice?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Weather": {
+      "main": [
+        [
+          {
+            "node": "Get Geo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Geo": {
+      "main": [
+        [
+          {
+            "node": "Get Weather",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Weather": {
+      "main": [
+        [
+          {
+            "node": "Format Weather",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Weather": {
+      "main": [
+        [
+          {
+            "node": "Reply Voice?",
             "type": "main",
             "index": 0
           }
