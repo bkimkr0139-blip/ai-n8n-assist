@@ -755,6 +755,101 @@
         }
       },
       "webhookId": "d344a6bf-2124-49e6-8c1c-f6f4edb98d64"
+    },
+    {
+      "id": "8d880bde-b217-43e7-8a2d-b3c4dcc11552",
+      "name": "Care Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -208,
+        -60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": false,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "돌봄",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "어르신 통화",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "c3",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "어르신통화",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "c4",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "복지상담",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "c5",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "복지 상담",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "3a0d4890-36e3-465f-9647-0c0cfa104593",
+      "name": "Reply: Care Link",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        40,
+        -120
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "💚 어르신 돌봄 상담 모드입니다. 아래를 열고 [통화 시작]을 누른 뒤 편하게 말씀하세요. 따뜻한 여성 생활지원사가 존댓말로 안부를 여쾰보고, 지난 대화도 기억해 이어갑니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/care.html",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram Bot"
+        }
+      },
+      "webhookId": "40559f11-040d-4960-a152-5f45a400a64a"
     }
   ],
   "connections": {
@@ -780,7 +875,7 @@
         ],
         [
           {
-            "node": "Voice Mode?",
+            "node": "Care Mode?",
             "type": "main",
             "index": 0
           }
@@ -1056,6 +1151,24 @@
         [
           {
             "node": "Voice?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Care Mode?": {
+      "main": [
+        [
+          {
+            "node": "Reply: Care Link",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Voice Mode?",
             "type": "main",
             "index": 0
           }

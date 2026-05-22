@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>💚 어르신 돌봄 상담</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+         max-width: 640px; margin: 0 auto; padding: 22px; background: #fdf6ee; color: #2b2b2b; }
+  h1 { font-size: 1.7rem; color: #2e7d52; margin: 6px 0 2px; }
+  .sub { color: #6b6b6b; font-size: 1rem; margin-bottom: 14px; }
+  .card { background: #fff; border: 1px solid #ead9c5; border-radius: 16px; padding: 16px; margin: 12px 0;
+          box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+  input { width: 100%; font-size: 1.1rem; padding: 13px; border-radius: 12px; border: 1px solid #cfcfcf; }
+  .bigbtn { width: 100%; font-size: 1.5rem; font-weight: 800; padding: 22px; border-radius: 18px; border: none;
+            color: #fff; background: #2e7d52; cursor: pointer; margin-top: 10px; }
+  .bigbtn.stop { background: #b3433a; }
+  .bigbtn:disabled { opacity: .45; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  select { font-size: 1.05rem; padding: 10px; border-radius: 10px; border: 1px solid #cfcfcf; }
+  #status { font-size: 1.15rem; padding: 14px; border-radius: 12px; background: #eef6f0; margin: 12px 0;
+            text-align: center; word-break: break-all; }
+  #log { display: flex; flex-direction: column; gap: 10px; }
+  .msg { padding: 12px 15px; border-radius: 14px; max-width: 88%; white-space: pre-wrap; line-height: 1.5; font-size: 1.15rem; }
+  .me { align-self: flex-end; background: #dbeafe; }
+  .ai { align-self: flex-start; background: #e9f5ee; }
+  .sys { align-self: center; background: #f3ece1; font-size: .95rem; color: #6b6b6b; }
+  .memrow { font-size: .9rem; color: #6b6b6b; display: flex; justify-content: space-between; align-items: center; }
+  .small { font-size: .9rem; padding: 8px 12px; border-radius: 10px; border: 1px solid #cfcfcf; background: #fff; cursor: pointer; }
+  details { font-size: .92rem; color: #555; }
+</style>
+</head>
+<body>
+  <h1>💚 어르신 돌봄 상담</h1>
+  <div class="sub">따뜻한 생활지원사와 음성으로 안부를 나눠요. 버튼을 누르고 편하게 말씀하세요.</div>
+
+  <div class="card">
+    <input id="key" type="password" placeholder="OpenAI API Key (sk-...) — 처음 한 번만" autocomplete="off" />
+    <div class="row" style="margin-top:10px">
+      <label>목소리</label>
+      <select id="voice">
+        <option value="coral">coral (여성·따뜻)</option>
+        <option value="shimmer">shimmer (여성·부드러움)</option>
+        <option value="sage">sage (여성)</option>
+        <option value="ballad">ballad</option>
+        <option value="alloy">alloy</option>
+      </select>
+    </div>
+    <button id="start" class="bigbtn">▶ 통화 시작</button>
+    <button id="stop" class="bigbtn stop" disabled>■ 통화 끝내기</button>
+  </div>
+
+  <div id="status">대기 중 — API 키 입력 후 [통화 시작]</div>
+
+  <div class="card">
+    <div class="memrow">
+      <span id="memstate">📓 이전 기록: 확인 중…</span>
+      <button id="clearmem" class="small">기억 지우기</button>
+    </div>
+    <details id="memdetails" style="margin-top:8px"><summary>저장된 어르신 메모 보기</summary><div id="memtext" style="white-space:pre-wrap;margin-top:8px"></div></details>
+  </div>
+
+  <div id="log"></div>
+  <audio id="audio" autoplay></audio>
+
+  <script>
+    const MODEL = 'gpt-realtime';
+    const CALLS_URL = 'https://api.openai.com/v1/realtime/calls';
+    const MEM_KEY = 'care_memory_v1';
+
+    const PERSONA =
+      '당신은 어르신을 돌보는 따뜻하고 친절한 여성 생활지원사(돌봄 종사자)입니다. ' +
+      '항상 정중한 존댓말로, 천천히 또박또박, 부드럽고 다정하게 말합니다. ' +
+      '어르신의 안부(식사, 수면, 건강, 통증, 약 복용, 기분, 외로움)를 한 번에 하나씩 자연스럽게 여쭙고 공감하며 경청합니다. ' +
+      '쉽고 짧은 문장으로 말하고, 어르신이 편안하시도록 날씨·가족·옛이야기 같은 여담도 나눕니다. ' +
+      '걱정되는 점(건강 악화, 우울, 위급 신호)이 있으면 부드럽게 더 여쭤보고 안심시키되, 의료 진단·처방은 하지 말고 ' +
+      '필요하면 가족이나 담당 선생님께 알리시도록 권합니다. 답변은 1~3문장으로 따뜻하고 간결하게.';
+
+    const $ = (id) => document.getElementById(id);
+    const els = { key:$('key'), voice:$('voice'), start:$('start'), stop:$('stop'), status:$('status'),
+                  log:$('log'), audio:$('audio'), memstate:$('memstate'), memtext:$('memtext'), clearmem:$('clearmem') };
+    els.key.value = localStorage.getItem('oai_key') || '';
+
+    let pc=null, dc=null, micStream=null, aiBuf='', turns=[], pastMem='';
+
+    const setStatus = (s)=> els.status.textContent = s;
+    function add(cls, text){ const d=document.createElement('div'); d.className='msg '+cls; d.textContent=text; els.log.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'end'}); }
+    function loadMem(){ try { return localStorage.getItem(MEM_KEY)||''; } catch { return ''; } }
+    function saveMem(t){ try { localStorage.setItem(MEM_KEY, t); } catch {} ; refreshMemUI(); }
+    function refreshMemUI(){ const m=loadMem(); els.memstate.textContent = m ? '📓 이전 통화 기록 있음 (다음 통화에 반영됩니다)' : '📓 이전 기록 없음 (첫 통화)'; els.memtext.textContent = m || '(없음)'; }
+    refreshMemUI();
+    els.clearmem.onclick = ()=>{ if(confirm('저장된 어르신 메모를 지울까요?')){ try{localStorage.removeItem(MEM_KEY);}catch{}; refreshMemUI(); } };
+
+    function buildInstructions(){
+      pastMem = loadMem();
+      let ins = PERSONA;
+      if (pastMem) ins += '\n\n[이 어르신과의 이전 통화 메모]\n' + pastMem +
+        '\n\n위 메모를 자연스럽게 활용하세요. 지난번에 하신 이야기(건강, 기분, 가족, 약속 등)를 기억하는 듯 먼저 안부를 여쭤보며 친근하게 이어가세요. 메모를 그대로 읽지 말고 대화에 녹이세요.';
+      else ins += '\n\n(첫 통화입니다. 따뜻하게 자기소개를 하고 성함과 오늘 안부를 부드럽게 여쭤보세요.)';
+      return ins;
+    }
+    function sessionConfig(){
+      return { type:'session.update', session:{ type:'realtime', instructions: buildInstructions(),
+        audio:{ input:{ transcription:{ model:'whisper-1' }, turn_detection:{ type:'server_vad', silence_duration_ms:1100, prefix_padding_ms:300 } },
+                output:{ voice: els.voice.value } } } };
+    }
+
+    async function start(){
+      const key = els.key.value.trim();
+      if(!key){ alert('OpenAI API Key를 입력해 주세요.'); return; }
+      localStorage.setItem('oai_key', key);
+      els.start.disabled = true; turns = [];
+      try { setStatus('🎤 마이크 권한을 허용해 주세요...'); micStream = await navigator.mediaDevices.getUserMedia({audio:true}); }
+      catch(e){ setStatus('❌ 마이크 권한이 거부되었습니다.'); els.start.disabled=false; return; }
+
+      pc = new RTCPeerConnection();
+      pc.ontrack = (e)=> els.audio.srcObject = e.streams[0];
+      micStream.getTracks().forEach(t=> pc.addTrack(t, micStream));
+      dc = pc.createDataChannel('oai-events');
+      dc.onopen = ()=>{ setStatus('🟢 연결됐어요 — 편하게 말씀하세요'); try{ dc.send(JSON.stringify(sessionConfig())); }catch{}; add('sys', pastMem ? '이전 대화를 기억하고 있어요. 안부를 나눠요.' : '첫 통화예요. 따뜻하게 인사드릴게요.'); };
+      dc.onmessage = (e)=>{ let ev; try{ ev=JSON.parse(e.data); }catch{ return; } const t=ev.type||'';
+        if(t.indexOf('input_audio_transcription')>=0 && t.endsWith('.completed')){ if(ev.transcript){ const s=ev.transcript.trim(); add('me','🗣️ '+s); turns.push('어르신: '+s); } }
+        else if(t.endsWith('audio_transcript.delta')){ aiBuf += (ev.delta||''); }
+        else if(t.endsWith('audio_transcript.done')){ const s=(ev.transcript||aiBuf).trim(); add('ai','💚 '+s); turns.push('도우미: '+s); aiBuf=''; }
+        else if(t==='error'){ add('sys','⚠️ '+JSON.stringify(ev.error||ev)); }
+      };
+      pc.onconnectionstatechange = ()=>{ if(['failed','disconnected','closed'].includes(pc.connectionState)) setStatus('통화가 종료되었어요 ('+pc.connectionState+')'); };
+
+      try{
+        const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+        setStatus('연결 중입니다...');
+        const resp = await fetch(CALLS_URL+'?model='+encodeURIComponent(MODEL), { method:'POST', body:offer.sdp, headers:{ 'Authorization':'Bearer '+key, 'Content-Type':'application/sdp' } });
+        if(!resp.ok){ const b=await resp.text().catch(()=> ''); setStatus('❌ 연결 실패 ('+resp.status+'): '+b.slice(0,400)); cleanup(); return; }
+        await pc.setRemoteDescription({ type:'answer', sdp: await resp.text() });
+        els.stop.disabled = false;
+      } catch(err){ setStatus('❌ 오류: '+(err&&err.message?err.message:err)); cleanup(); }
+    }
+
+    async function updateMemory(key){
+      if(turns.length < 2) return;
+      const convo = turns.join('\n');
+      const prompt = '다음은 돌봄 도우미와 어르신의 통화 내용입니다. 다음 통화 때 참고할 "어르신 메모"를 한국어로 갱신해 주세요. '+
+        '기존 메모와 이번 통화를 합쳐서, 어르신 호칭/성함, 건강상태와 통증, 기분, 가족/일상, 걱정거리, 약속한 것, 다음에 여쭤볼 것을 간결한 불릿으로 12줄 이내로 정리하세요. 메모만 출력하세요.\n\n[기존 메모]\n'+(pastMem||'(없음)')+'\n\n[이번 통화]\n'+convo;
+      try{
+        const r = await fetch('https://api.openai.com/v1/chat/completions', { method:'POST', headers:{ 'Authorization':'Bearer '+key, 'Content-Type':'application/json' },
+          body: JSON.stringify({ model:'gpt-4o-mini', temperature:0.3, messages:[{role:'user', content:prompt}] }) });
+        if(r.ok){ const d=await r.json(); const m=d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content; if(m){ saveMem(m.trim()); add('sys','📓 이번 대화를 기억에 저장했어요.'); return; } }
+      }catch{}
+      // 요약 실패 시: 최근 대화 원문 일부라도 저장
+      saveMem((pastMem? pastMem+'\n':'')+ '[최근통화]\n'+ turns.slice(-12).join('\n'));
+    }
+
+    function cleanup(){ try{if(dc)dc.close();}catch{} try{if(pc)pc.close();}catch{} try{if(micStream)micStream.getTracks().forEach(t=>t.stop());}catch{} pc=dc=micStream=null; els.start.disabled=false; els.stop.disabled=true; }
+    async function stop(){ const key=els.key.value.trim(); setStatus('통화를 정리하고 기억에 저장하는 중...'); cleanup(); await updateMemory(key); setStatus('■ 통화가 끝났어요. 수고하셨습니다.'); }
+    els.start.onclick = start; els.stop.onclick = stop;
+  </script>
+</body>
+</html>

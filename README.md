@@ -10,7 +10,8 @@ n8n으로 만든 **텔레그램 개인 비서 봇**. 텔레그램으로 대화�
 - 📧 자연어 이메일 발송 ("OO한테 제목 본문으로 메일 보내줘")
 - 📄 문서 첨부 시 자동 인덱싱(PGVector) → 질문하면 문서 근거로 답변(RAG)
 - 🎙️ **음성 대화**: 음성 메시지를 보내면 Whisper로 전사 → 같은 파이프라인 처리 → 답변을 TTS 음성으로 회신 (텍스트로 보내면 텍스트로 답)
-- 📞 **실시간 음성대화(별도 웹앱)**: 텔레그램은 턴 기반이라 핸즈프리 실시간이 불가 → [`realtime-voice/`](realtime-voice/)에 OpenAI Realtime API 기반 브라우저 웹앱(마이크 안 누르고 연속 음성↔음성). **GitHub Pages 고정 URL**: https://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/ . 텔레그램에 **"음성대화"** 입력 시 봇이 이 링크를 회신
+- 📞 **실시간 음성대화(별도 웹앱)**: 텔레그램은 턴 기반이라 핸즈프리 실시간이 불가 → [`realtime-voice/`](realtime-voice/)에 OpenAI Realtime API 기반 브라우저 웹앱(마이크 안 누르고 연속 음성↔음성, `gpt-realtime`). **GitHub Pages 고정 URL**: https://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/ . 텔레그램 **"음성대화"** → 이 링크 회신
+- 💚 **어르신 돌봄 상담 모드**: [`realtime-voice/care.html`](realtime-voice/care.html) — 따뜻한 여성 음성·존댓말 생활지원사 페르소나로 안부확인. **세션 간 기억**(localStorage에 어르신 메모 저장→다음 통화에 맥락 주입), 어르신용 큰 UI, VAD 1.1초(끊김 방지). 텔레그램 **"돌봄/어르신 통화/복지상담"** → care.html 링크 회신. URL: https://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/care.html
 
 | 워크플로우 | 역할 |
 |---|---|
