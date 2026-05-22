@@ -20,20 +20,21 @@ cd ai-n8n-assist/realtime-voice && python -m http.server 8080
 브라우저에서 `http://localhost:3000`(serve) 또는 `http://localhost:8080`(python) 접속 →
 OpenAI API 키 입력 → **목소리 선택** → **[음성 대화 시작]** → 말하기.
 
-## 외부 접속 (n8n 웹훅으로 서빙) — 추가 터널 불필요
+## 외부 접속 = GitHub Pages (권장, 고정 URL)
 
-n8n이 이미 ngrok 등으로 공개돼 있으면, 이 HTML을 **n8n 웹훅으로 서빙**해 같은 공개 도메인에서 외부 접속할 수 있다(별도 터널/포트 불필요). ngrok 무료는 공개 도메인이 1개라 이 방식이 깔끔하다.
+이 정적 페이지는 **GitHub Pages**로 호스팅된다 — 터널·서버 불필요, 고정 HTTPS URL, 휴대폰 마이크 동작:
 
-```bash
-set N8N_API_KEY=<n8n public API key>
-node ai-n8n-assist/realtime-voice/serve-via-n8n.cjs
-```
+**https://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/**
 
-→ `realtime_voice_page` 워크플로우(Webhook GET /voice → Respond HTML)가 생성·활성화된다.
-접속 URL: **`{WEBHOOK_URL}/webhook/voice`** (예: `https://xxxx.ngrok-free.dev/webhook/voice`). HTTPS라 휴대폰에서도 마이크 동작.
+main 브랜치에 push하면 자동 반영된다. (포크한 경우 본인 repo의 Pages를 켜고 `https://<user>.github.io/<repo>/realtime-voice/` 사용. 활성화: GitHub repo Settings → Pages → Source: main / root, 또는 API `POST /repos/{o}/{r}/pages {"source":{"branch":"main","path":"/"}}`.)
+
+> ⚠️ 페이지는 공개다. **OpenAI 키를 HTML/repo에 절대 박지 말 것**(공개 노출=도용). 키는 페이지에서 1회 입력하면 브라우저 localStorage에 저장되어 다음부터 자동 채워진다.
 
 ### 텔레그램에서 바로 열기
-telegram_bot에 키워드 분기가 있어, 텔레그램에 **"음성대화"**(또는 "음성모드", "실시간 음성")를 보내면 봇이 위 링크를 회신한다. 링크는 `{{ $env.WEBHOOK_URL }}/webhook/voice` 로 만들어져 도메인이 바뀌어도 자동 추적된다. (봇이 사용자 기기의 앱을 직접 실행할 수는 없으므로, 탭해서 여는 방식.)
+telegram_bot에 키워드 분기가 있어, 텔레그램에 **"음성대화"**(또는 "음성모드", "실시간 음성")를 보내면 봇이 위 Pages 링크를 회신한다(탭해서 열기).
+
+### ❌ n8n 웹훅 서빙은 불가
+n8n 웹훅 응답은 강제로 `Content-Security-Policy: sandbox ...`(allow-same-origin 없음)를 붙여, 페이지가 샌드박스에 갇혀 localStorage·마이크·WebRTC가 모두 막힌다(스크립트가 즉시 죽어 "대기중"에서 멈춤). respondToWebhook 커스텀 헤더로도 이 CSP를 못 덮는다. → 그래서 GitHub Pages로 서빙한다.
 
 ## 참고 / 한계
 
