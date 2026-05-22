@@ -153,7 +153,9 @@
       "parameters": {
         "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
         "text": "📄 문서가 RAG에 등록되었습니다.",
-        "additionalFields": {}
+        "additionalFields": {
+          "appendAttribution": false
+        }
       },
       "id": "81046e9e-9ff6-4d0e-9897-26aeb378f2fd",
       "name": "Reply: Indexed",
@@ -231,7 +233,9 @@
       "parameters": {
         "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
         "text": "={{ $json.reply }}",
-        "additionalFields": {}
+        "additionalFields": {
+          "appendAttribution": false
+        }
       },
       "id": "664502f0-57ff-4905-9fda-dc8467103da4",
       "name": "Reply: Chat",
@@ -357,7 +361,9 @@
       "parameters": {
         "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
         "text": "={{ $json.result || '✉️ 메일 처리 완료' }}",
-        "additionalFields": {}
+        "additionalFields": {
+          "appendAttribution": false
+        }
       },
       "id": "df9ea482-705a-4ba1-b876-c61f58c4819e",
       "name": "Reply: Email",
