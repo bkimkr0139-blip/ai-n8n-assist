@@ -13,8 +13,8 @@
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.3,
       "position": [
-        -416,
-        32
+        -800,
+        -176
       ],
       "webhookId": "76af2d28-63bd-4667-b830-e393fcc4c0ad",
       "credentials": {
@@ -54,8 +54,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -208,
-        32
+        -512,
+        -176
       ]
     },
     {
@@ -69,8 +69,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        400,
-        96
+        304,
+        -144
       ],
       "webhookId": "ccf7150e-b89f-4a28-9403-440ca94afdb3",
       "credentials": {
@@ -91,8 +91,8 @@
       "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
       "typeVersion": 1.3,
       "position": [
-        880,
-        32
+        752,
+        -96
       ],
       "credentials": {
         "postgres": {
@@ -131,7 +131,7 @@
       "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
       "typeVersion": 1.1,
       "position": [
-        1024,
+        1072,
         256
       ]
     },
@@ -145,7 +145,7 @@
       "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
       "typeVersion": 1,
       "position": [
-        1088,
+        1104,
         464
       ]
     },
@@ -162,8 +162,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1408,
-        192
+        1440,
+        80
       ],
       "webhookId": "8bc69b91-cd9f-48f0-84b1-0c8c7f8590fe",
       "credentials": {
@@ -178,7 +178,7 @@
         "promptType": "define",
         "text": "={{ $json.userMessage }}",
         "options": {
-          "systemMessage": "=당신은 BC Kim의 개인 비서입니다.\n\n아래 [참고 문서]에는 사용자가 시스템에 등록·보유한 문서에서 이번 질문과 관련해 검색된 실제 내용이 들어 있습니다. 이것은 사용자가 이미 등록한 문서 그 자체입니다.\n- [참고 문서]에 내용이 있으면, 반드시 그 내용을 근거로 질문에 직접·구체적으로 답하세요. 절대 \"문서를 볼 수 없다\", \"등록된 문서 내용을 확인할 수 없다\"고 답하지 마세요.\n- 어떤 문서가 등록됐는지·무슨 내용인지 묻는 경우에도, [참고 문서]를 보고 어떤 문서가 있는지와 그 요지를 설명하세요. 질문의 문서 이름이 조금 달라도 [참고 문서]와 같은 문서로 판단되면 그것을 근거로 답하세요.\n- [참고 문서]가 정확히 \"(관련 등록 문서 없음)\"일 때만 관련 문서를 찾지 못했다고 안내하세요.\n\n[참고 문서]\n{{ $json.context }}\n\n반드시 아래 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트는 절대 출력하지 마세요.\n\n이메일 발송 요청이고 받는사람/제목/본문이 모두 명확하면:\n{\"action\":\"email\",\"to\":\"받는주소\",\"subject\":\"제목\",\"body\":\"본문\"}\n\n그 외 모든 경우(일반 대화, 문서 기반 질의응답, 이메일 정보 부족 등):\n{\"action\":\"chat\",\"reply\":\"사용자에게 보낼 한국어 답변\"}\n\n이메일 정보가 부족하면 action을 chat으로 하고 reply에 무엇이 필요한지 물어보세요.\n\n{{ $json.isVoice ? '사용자가 방금 음성 메시지로 말했고, 그 음성은 이미 정확한 텍스트로 변환되어 위 질문(Human)으로 전달되었습니다. 그리고 당신의 reply는 자동으로 음성으로 변환되어 사용자에게 들립니다. 그러므로 음성을 들을 수 없다거나 음성 대화를 지원하지 않는다거나 텍스트로 다시 보내달라는 말은 절대 하지 마세요. 사용자가 들리냐고 물으면 잘 들린다고 자연스럽게 답하고, 들은 내용에 곱바로 응답하세요. reply는 2~3문장 이내의 짧고 자연스러운 구어체로 작성하세요.' : '' }}"
+          "systemMessage": "=당신은 BC Kim의 개인 비서입니다.\n\n아래 [참고 문서]에는 사용자가 시스템에 등록·보유한 문서에서 이번 질문과 관련해 검색된 실제 내용이 들어 있습니다. 이것은 사용자가 이미 등록한 문서 그 자체입니다.\n- [참고 문서]에 내용이 있으면, 반드시 그 내용을 근거로 질문에 직접·구체적으로 답하세요. 절대 \"문서를 볼 수 없다\", \"등록된 문서 내용을 확인할 수 없다\"고 답하지 마세요.\n- 어떤 문서가 등록됐는지·무슨 내용인지 묻는 경우에도, [참고 문서]를 보고 어떤 문서가 있는지와 그 요지를 설명하세요. 질문의 문서 이름이 조금 달라도 [참고 문서]와 같은 문서로 판단되면 그것을 근거로 답하세요.\n- [참고 문서]가 정확히 \"(관련 등록 문서 없음)\"일 때만 관련 문서를 찾지 못했다고 안내하세요.\n\n[참고 문서]\n{{ $json.context }}\n\n반드시 아래 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트는 절대 출력하지 마세요.\n\n이메일 발송 요청이고 받는사람/제목/본문이 모두 명확하면:\n{\"action\":\"email\",\"to\":\"받는주소\",\"subject\":\"제목\",\"body\":\"본문\"}\n\n그 외 모든 경우(일반 대화, 문서 기반 질의응답, 이메일 정보 부족 등):\n{\"action\":\"chat\",\"reply\":\"사용자에게 보낼 한국어 답변\"}\n\n이메일 정보가 부족하면 action을 chat으로 하고 reply에 무엇이 필요한지 물어보세요.\n\n{{ $json.isVoice ? '사용자가 방금 음성 메시지로 말했고, 그 음성은 이미 정확한 텍스트로 변환되어 위 질문으로 전달되었습니다. 당신의 reply도 자동으로 음성으로 변환되어 사용자에게 들립니다. 그러므로 음성을 들을 수 없다거나 음성 대화를 지원하지 않는다거나 텍스트로 다시 보내달라는 말은 절대 하지 마세요. 들은 내용에 곱바로 자연스럽게 답하고 reply는 2~3문장 이내로 짧게 작성하세요.' : '' }}\n\n{{ $json.isVoice ? '지금 사용자는 음성으로 대화 중입니다. reply는 2~3문장 이내의 짧고 자연스러운 구어체로 작성하세요.' : '' }}"
         }
       },
       "id": "ba0f4135-3f22-456b-ae77-f555536f81f8",
@@ -242,8 +242,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1248,
-        816
+        1504,
+        1072
       ],
       "webhookId": "ae8b4fad-2386-49cc-beb1-c3e1c6bfdbf4",
       "credentials": {
@@ -262,8 +262,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        832,
-        560
+        816,
+        704
       ]
     },
     {
@@ -468,8 +468,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -560,
-        640
+        -464,
+        352
       ]
     },
     {
@@ -484,7 +484,7 @@
       "typeVersion": 1.2,
       "position": [
         -320,
-        432
+        112
       ],
       "webhookId": "0d03ec4f-d791-41ba-8f8e-8d4cb0bb8e1d",
       "credentials": {
@@ -507,8 +507,8 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.3,
       "position": [
-        -96,
-        320
+        -112,
+        112
       ],
       "credentials": {
         "openAiApi": {
@@ -526,8 +526,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        96,
-        512
+        304,
+        160
       ]
     },
     {
@@ -560,19 +560,11 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1248,
-        1008
+        1168,
+        864
       ]
     },
     {
-      "id": "8a799983-9afb-46ff-b4cf-d0f6083dfd3f",
-      "name": "TTS",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1456,
-        1080
-      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.openai.com/v1/audio/speech",
@@ -584,12 +576,19 @@
         "options": {
           "response": {
             "response": {
-              "responseFormat": "file",
-              "outputPropertyName": "data"
+              "responseFormat": "file"
             }
           }
         }
       },
+      "id": "8a799983-9afb-46ff-b4cf-d0f6083dfd3f",
+      "name": "TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1488,
+        832
+      ],
       "credentials": {
         "openAiApi": {
           "id": "",
@@ -598,27 +597,19 @@
       }
     },
     {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst binary = item.binary || {};\nif (binary.data) {\n  binary.data.fileName = 'voice.ogg';\n  binary.data.mimeType = 'audio/ogg';\n}\nreturn [{ json: item.json || {}, binary }];"
+      },
       "id": "925b406d-d6dd-4201-a757-8f28291a8f16",
       "name": "Tag Audio",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1616,
-        1080
-      ],
-      "parameters": {
-        "jsCode": "const item = $input.first();\nconst binary = item.binary || {};\nif (binary.data) {\n  binary.data.fileName = 'voice.ogg';\n  binary.data.mimeType = 'audio/ogg';\n}\nreturn [{ json: item.json || {}, binary }];"
-      }
+        1664,
+        832
+      ]
     },
     {
-      "id": "05ae60af-9035-4a27-9e26-7d4f83c34bf7",
-      "name": "Send Voice",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1776,
-        1080
-      ],
       "parameters": {
         "method": "POST",
         "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendVoice",
@@ -642,42 +633,24 @@
           ]
         },
         "options": {}
-      }
-    },
-    {
-      "id": "ddbb1901-8066-4aa0-a52c-f714a93f21d3",
-      "name": "Reply: Heard",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
+      },
+      "id": "05ae60af-9035-4a27-9e26-7d4f83c34bf7",
+      "name": "Send Voice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
-        -16,
-        320
-      ],
-      "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "=🎤 {{ $json.text }}",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
-      "credentials": {
-        "telegramApi": {
-          "id": "",
-          "name": "Telegram Bot"
-        }
-      },
-      "webhookId": "418ea1a3-bf35-4f1a-a733-ecfb8a407e68"
+        1792,
+        848
+      ]
     },
     {
-      "id": "83fca7cf-c309-422c-bafc-c7261569dc5d",
-      "name": "Voice Mode?",
+      "id": "9d224cd3-8dff-485c-b424-d16b9ad1dd13",
+      "name": "Care Admin?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -208,
-        140
+        -512,
+        -560
       ],
       "parameters": {
         "conditions": {
@@ -689,36 +662,54 @@
           },
           "conditions": [
             {
-              "id": "k1",
+              "id": "a1",
               "leftValue": "={{ $json.message.text }}",
-              "rightValue": "음성대화",
+              "rightValue": "관리자",
               "operator": {
                 "type": "string",
                 "operation": "contains"
               }
             },
             {
-              "id": "k2",
+              "id": "a2",
               "leftValue": "={{ $json.message.text }}",
-              "rightValue": "음성 대화",
+              "rightValue": "돌봄 설정",
               "operator": {
                 "type": "string",
                 "operation": "contains"
               }
             },
             {
-              "id": "k3",
+              "id": "a3",
               "leftValue": "={{ $json.message.text }}",
-              "rightValue": "음성모드",
+              "rightValue": "돌봄설정",
               "operator": {
                 "type": "string",
                 "operation": "contains"
               }
             },
             {
-              "id": "k4",
+              "id": "a4",
               "leftValue": "={{ $json.message.text }}",
-              "rightValue": "실시간 음성",
+              "rightValue": "대화 설정",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "a5",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "통화 조정",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "a6",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "통화조정",
               "operator": {
                 "type": "string",
                 "operation": "contains"
@@ -731,19 +722,19 @@
       }
     },
     {
-      "id": "c0686ad4-4928-4843-ab1e-a0d8a173bf90",
-      "name": "Reply: App Link",
+      "id": "28c45ea1-9ce8-468d-bd90-a357a577b511",
+      "name": "Reply: Admin Link",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        40,
-        60
+        -220,
+        -640
       ],
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
         "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "🎙️ 실시간 음성 대화 모드입니다. 아래 링크를 열고 [음성 대화 시작]을 누르세요. OpenAI 키는 처음 한 번만 입력하면 저장됩니다. 그 뒤엔 마이크를 누를 필요 없이 계속 말하면 됩니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/",
+        "text": "⚙️ 돌봄 통화 설정(관리자) 모드입니다. 아래를 열고 음성으로 말투·추임새·안내사항·맥락관리를 설정하세요. 저장하면 어르신 통화(돌봄 모드)에 바로 반영됩니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/care-admin.html",
         "additionalFields": {
           "appendAttribution": false
         }
@@ -754,16 +745,16 @@
           "name": "Telegram Bot"
         }
       },
-      "webhookId": "d344a6bf-2124-49e6-8c1c-f6f4edb98d64"
+      "webhookId": "c49cdcaf-5d04-4790-a8a6-b94174feb392"
     },
     {
-      "id": "8d880bde-b217-43e7-8a2d-b3c4dcc11552",
+      "id": "f5f43627-b45b-4d85-a261-0bc5f5d2660d",
       "name": "Care Mode?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -208,
-        -60
+        -512,
+        -360
       ],
       "parameters": {
         "conditions": {
@@ -826,19 +817,19 @@
       }
     },
     {
-      "id": "3a0d4890-36e3-465f-9647-0c0cfa104593",
+      "id": "f7895db1-df59-4752-807e-1da3b0ea4f0f",
       "name": "Reply: Care Link",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        40,
-        -120
+        -220,
+        -420
       ],
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
         "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "💚 어르신 돌봄 상담 모드입니다. 아래를 열고 [통화 시작]을 누른 뒤 편하게 말씀하세요. 따뜻한 여성 생활지원사가 존댓말로 안부를 여쾰보고, 지난 대화도 기억해 이어갑니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/care.html",
+        "text": "💚 어르신 돌봄 상담 모드입니다. 아래를 열고 [통화 시작]을 누른 뒤 편하게 말씀하세요. 따뜻한 생활지원사가 안부를 여쾰보고 지난 대화도 기억해 이어갑니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/care.html",
         "additionalFields": {
           "appendAttribution": false
         }
@@ -849,7 +840,119 @@
           "name": "Telegram Bot"
         }
       },
-      "webhookId": "40559f11-040d-4960-a152-5f45a400a64a"
+      "webhookId": "9fe2df2a-5830-4ce1-bf65-14bac814e2d4"
+    },
+    {
+      "id": "e87fefa5-76f8-4f29-9d77-2d4a291fd556",
+      "name": "Voice Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        -160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": false,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "v1",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "음성대화",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "v2",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "음성 대화",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "v3",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "음성모드",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "v4",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "실시간 음성",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6782a7af-9092-4492-99fe-16b24db96097",
+      "name": "Reply: App Link",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -220,
+        -200
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "🎙️ 실시간 음성 대화 모드입니다. 아래를 열고 [음성 대화 시작]을 누르세요. OpenAI 키는 처음 한 번만 입력하면 됩니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram Bot"
+        }
+      },
+      "webhookId": "0d499bde-bdb1-423e-b01b-84084d260beb"
+    },
+    {
+      "id": "5fbc6c5d-1a22-4700-b5ec-0cc5aa70837a",
+      "name": "Reply: Heard",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -112,
+        320
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "=🎤 {{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram Bot"
+        }
+      },
+      "webhookId": "d563389a-ed95-4b21-9605-ef69b7cad1bb"
     }
   ],
   "connections": {
@@ -875,7 +978,7 @@
         ],
         [
           {
-            "node": "Care Mode?",
+            "node": "Care Admin?",
             "type": "main",
             "index": 0
           }
@@ -1139,18 +1242,18 @@
         ]
       ]
     },
-    "Voice Mode?": {
+    "Care Admin?": {
       "main": [
         [
           {
-            "node": "Reply: App Link",
+            "node": "Reply: Admin Link",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Voice?",
+            "node": "Care Mode?",
             "type": "main",
             "index": 0
           }
@@ -1169,6 +1272,24 @@
         [
           {
             "node": "Voice Mode?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice Mode?": {
+      "main": [
+        [
+          {
+            "node": "Reply: App Link",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Voice?",
             "type": "main",
             "index": 0
           }
