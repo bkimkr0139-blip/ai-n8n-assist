@@ -20,6 +20,21 @@ cd ai-n8n-assist/realtime-voice && python -m http.server 8080
 브라우저에서 `http://localhost:3000`(serve) 또는 `http://localhost:8080`(python) 접속 →
 OpenAI API 키 입력 → **목소리 선택** → **[음성 대화 시작]** → 말하기.
 
+## 외부 접속 (n8n 웹훅으로 서빙) — 추가 터널 불필요
+
+n8n이 이미 ngrok 등으로 공개돼 있으면, 이 HTML을 **n8n 웹훅으로 서빙**해 같은 공개 도메인에서 외부 접속할 수 있다(별도 터널/포트 불필요). ngrok 무료는 공개 도메인이 1개라 이 방식이 깔끔하다.
+
+```bash
+set N8N_API_KEY=<n8n public API key>
+node ai-n8n-assist/realtime-voice/serve-via-n8n.cjs
+```
+
+→ `realtime_voice_page` 워크플로우(Webhook GET /voice → Respond HTML)가 생성·활성화된다.
+접속 URL: **`{WEBHOOK_URL}/webhook/voice`** (예: `https://xxxx.ngrok-free.dev/webhook/voice`). HTTPS라 휴대폰에서도 마이크 동작.
+
+### 텔레그램에서 바로 열기
+telegram_bot에 키워드 분기가 있어, 텔레그램에 **"음성대화"**(또는 "음성모드", "실시간 음성")를 보내면 봇이 위 링크를 회신한다. 링크는 `{{ $env.WEBHOOK_URL }}/webhook/voice` 로 만들어져 도메인이 바뀌어도 자동 추적된다. (봇이 사용자 기기의 앱을 직접 실행할 수는 없으므로, 탭해서 여는 방식.)
+
 ## 참고 / 한계
 
 - **비용**: Realtime API는 Whisper+TTS 조합보다 비싸다(오디오 토큰 과금). 길게 켜두면 비용 누적.
