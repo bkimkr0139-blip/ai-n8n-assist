@@ -9,6 +9,7 @@ n8n으로 만든 **텔레그램 개인 비서 봇**. 텔레그램으로 대화�
 - 💬 텔레그램 대화 + 대화 메모리(채팅별)
 - 📧 자연어 이메일 발송 ("OO한테 제목 본문으로 메일 보내줘")
 - 📄 문서 첨부 시 자동 인덱싱(PGVector) → 질문하면 문서 근거로 답변(RAG)
+- 🖼️ **사진 분석**: 사진을 보내면 비전(gpt-4o-mini)으로 내용을 설명하고, "사진 등록"이라고 답하면 그 설명을 RAG에 임베딩(staticData에 임시 보관 후 확인 시 저장)
 - 🌤️ **날씨**: 텔레그램에서 날씨를 물으면 지역을 되묻고 해당 지역 날씨를 검색해 답(Open-Meteo, 무료·키 불필요). 돌봄 통화(care.html)에선 거주지역(기본 서울, 수정 가능)을 Realtime function calling으로 조회해 맥락있게 안내
 - 🎙️ **음성 대화**: 음성 메시지를 보내면 Whisper로 전사 → 같은 파이프라인 처리 → 답변을 TTS 음성으로 회신 (텍스트로 보내면 텍스트로 답)
 - 📞 **실시간 음성대화(별도 웹앱)**: 텔레그램은 턴 기반이라 핸즈프리 실시간이 불가 → [`realtime-voice/`](realtime-voice/)에 OpenAI Realtime API 기반 브라우저 웹앱(마이크 안 누르고 연속 음성↔음성, `gpt-realtime`). **GitHub Pages 고정 URL**: https://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/ . 텔레그램 **"음성대화"** → 이 링크 회신
