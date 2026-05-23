@@ -37,6 +37,8 @@
   <div class="card">
     <input id="key" type="password" placeholder="OpenAI API Key (sk-...) — 처음 한 번만" autocomplete="off" />
     <div class="row" style="margin-top:10px">
+      <label>담당 생활지원사</label>
+      <input id="worker" style="flex:1;min-width:120px" placeholder="예: 김지원" />
       <label>거주지역</label>
       <input id="region" style="flex:1;min-width:120px" placeholder="예: 서울" />
       <label>목소리</label>
@@ -80,10 +82,14 @@
       '어르신이 통화를 마치고 싶어 하시면(예: 그만/끊을게/이만/들어가볼게/수고했어요) 길게 붙잡지 말고 ' +
       '밝고 따뜻하게 짧은 작별 인사만 드리고 마무리합니다.';
 
+    const WORKER_KEY = 'care_worker';
+    const PURPOSE = (new URLSearchParams(location.search).get('purpose') || new URLSearchParams(location.search).get('p') || '').trim();
     const $ = (id) => document.getElementById(id);
-    const els = { key:$('key'), region:$('region'), voice:$('voice'), speed:$('speed'), start:$('start'), stop:$('stop'), status:$('status'),
+    const els = { key:$('key'), worker:$('worker'), region:$('region'), voice:$('voice'), speed:$('speed'), start:$('start'), stop:$('stop'), status:$('status'),
                   log:$('log'), audio:$('audio'), memstate:$('memstate'), memtext:$('memtext'), clearmem:$('clearmem') };
     els.key.value = localStorage.getItem('oai_key') || '';
+    els.worker.value = localStorage.getItem(WORKER_KEY) || '';
+    els.worker.onchange = ()=> localStorage.setItem(WORKER_KEY, (els.worker.value||'').trim());
     els.region.value = localStorage.getItem(REGION_KEY) || '서울';
     els.region.onchange = ()=> localStorage.setItem(REGION_KEY, (els.region.value||'서울').trim());
 
@@ -131,9 +137,11 @@
       ins += '\n\n[어르신 거주지역] '+region+'. 날씨를 여쭤보시면 get_weather 도구를 쓰세요. 지역을 따로 안 말씀하시면 거주지역('+region+')으로, 다른 지역을 말씀하시면 그 지역으로 조회하고, 결과를 다정하게 대화에 녹여 알려드리세요(예보 수치를 그대로 읽기보다 자연스럽게).';
       const cfg = (localStorage.getItem(CFG_KEY) || '').trim();
       if (cfg) ins += '\n\n[관리자 맞춤 설정 — 아래 지침을 최우선으로 따르세요]\n' + cfg;
-      if (pastMem) ins += '\n\n[이 어르신과의 이전 통화 메모]\n' + pastMem +
-        '\n\n통화를 시작하면 먼저 밝게 인사하고, 위 메모에서 한 가지를 콕 집어 안부를 여쭤보며 자연스럽게 이어가세요. 메모를 그대로 읽지 말고 대화에 녹이세요.';
-      else ins += '\n\n(첫 통화입니다. 밝게 자기소개를 하고 성함과 오늘 안부를 따뜻하게 여쭤보세요.)';
+      const worker = (els.worker.value||'').trim();
+      ins += '\n\n[통화 시작 인사] 가장 먼저 공손히 인사하세요: "어르신, 안녕하세요. 저는 생활지원사 ' + (worker || '') + '입니다." (담당자 이름이 비어 있으면 "저는 생활지원사입니다"). 그런 다음 아래 용건을 말하세요.';
+      if (PURPOSE === 'med') ins += '\n[오늘 용건] 복약 안내 전화입니다. 약 드실 시간이 되어 연락드렸다고 따뜻하게 말하고, 약을 드셨는지 여쭤본 뒤 아직이면 지금 천천히 드시도록 다정하게 안내·확인하세요. 물도 한 잔 곁들이시도록 권하세요. 그 뒤 짧게 안부도 여쭤보세요.';
+      else ins += '\n[오늘 용건] 안부 확인입니다. 식사·수면·기분·건강을 자연스럽게 여쭤보세요.';
+      if (pastMem) ins += '\n\n[이 어르신과의 이전 통화 메모]\n' + pastMem + '\n인사와 용건 뒤, 위 메모에서 한 가지를 콕 집어 안부를 이어가세요(메모를 그대로 읽지 말고 대화에 녹이세요).';
       return ins;
     }
     function sessionConfig(){

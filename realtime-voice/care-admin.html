@@ -35,6 +35,11 @@
   <div class="card">
     <input id="key" type="password" placeholder="OpenAI API Key (sk-...) — 처음 한 번만" autocomplete="off" />
     <div class="row" style="margin-top:10px">
+      <label>담당 생활지원사 이름</label>
+      <input id="worker" style="flex:1;min-width:160px" placeholder="예: 김지원" />
+      <button id="saveworker" class="alt">이름 저장</button>
+    </div>
+    <div class="row" style="margin-top:10px">
       <label>설정 도우미 목소리</label>
       <select id="voice">
         <option value="alloy">alloy (명료)</option>
@@ -75,10 +80,12 @@
       '관리자가 "저장/적용/끝/그만"이라고 하면 "설정을 저장하겠습니다"라고 짧게 안내하고 마무리하세요.';
 
     const $ = (id) => document.getElementById(id);
-    const els = { key:$('key'), voice:$('voice'), start:$('start'), stop:$('stop'), status:$('status'),
+    const els = { key:$('key'), worker:$('worker'), saveworker:$('saveworker'), voice:$('voice'), start:$('start'), stop:$('stop'), status:$('status'),
                   log:$('log'), audio:$('audio'), cfg:$('cfg'), savecfg:$('savecfg'), clearcfg:$('clearcfg') };
     els.key.value = localStorage.getItem('oai_key') || '';
     els.cfg.value = localStorage.getItem(CFG_KEY) || '';
+    els.worker.value = localStorage.getItem('care_worker') || '';
+    els.saveworker.onclick = ()=>{ localStorage.setItem('care_worker', (els.worker.value||'').trim()); setStatus('💾 담당 생활지원사 이름을 저장했습니다.'); };
 
     let pc=null, dc=null, micStream=null, aiBuf='', turns=[], endRequested=false, ending=false;
     const setStatus = (s)=> els.status.textContent = s;
