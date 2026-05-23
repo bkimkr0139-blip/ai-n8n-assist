@@ -50,6 +50,8 @@
       </select>
       <label>속도</label>
       <select id="speed"><option value="1.0">보통</option><option value="1.15" selected>조금 빠름</option><option value="1.3">빠름</option></select>
+      <label>소음환경</label>
+      <select id="env"><option value="quiet">조용한 방</option><option value="normal" selected>보통</option><option value="noisy">TV·소음 많음</option></select>
     </div>
     <button id="start" class="bigbtn">▶ 통화 시작</button>
     <button id="stop" class="bigbtn stop" disabled>■ 통화 끝내기</button>
@@ -80,14 +82,18 @@
       '걱정되는 점(건강 악화, 우울, 위급 신호)이 있으면 부드럽게 더 여쭤보고 안심시키되, 의료 진단·처방은 하지 말고 ' +
       '필요하면 가족이나 담당 선생님께 알리시도록 권합니다. 답변은 1~2문장으로 짧고 경쾌하게, 즉시 대답합니다. ' +
       '어르신이 통화를 마치고 싶어 하시면(예: 그만/끊을게/이만/들어가볼게/수고했어요) 길게 붙잡지 말고 ' +
-      '밝고 따뜻하게 짧은 작별 인사만 드리고 마무리합니다.';
+      '밝고 따뜻하게 짧은 작별 인사만 드리고 마무리합니다. ' +
+      '주변 TV·라디오·다른 사람 말소리나 잡음에는 반응하지 마세요. 어르신이 당신에게 또렷이 말을 걸 때만 답하고, 입력이 불분명하거나 대화 상대를 향한 말이 아닌 것 같으면 답하지 말고 조용히 기다리세요. 당신(AI) 자신의 말소리에는 절대 반응하지 마세요.';
 
     const WORKER_KEY = 'care_worker';
     const PURPOSE = (new URLSearchParams(location.search).get('purpose') || new URLSearchParams(location.search).get('p') || '').trim();
     const $ = (id) => document.getElementById(id);
-    const els = { key:$('key'), worker:$('worker'), region:$('region'), voice:$('voice'), speed:$('speed'), start:$('start'), stop:$('stop'), status:$('status'),
+    const els = { key:$('key'), worker:$('worker'), region:$('region'), voice:$('voice'), speed:$('speed'), env:$('env'), start:$('start'), stop:$('stop'), status:$('status'),
                   log:$('log'), audio:$('audio'), memstate:$('memstate'), memtext:$('memtext'), clearmem:$('clearmem') };
+    const ENV = { quiet:{nr:'near_field',th:0.45}, normal:{nr:'far_field',th:0.55}, noisy:{nr:'far_field',th:0.72} };
     els.key.value = localStorage.getItem('oai_key') || '';
+    els.env.value = localStorage.getItem('care_env') || 'normal';
+    els.env.onchange = ()=> localStorage.setItem('care_env', els.env.value);
     els.worker.value = localStorage.getItem(WORKER_KEY) || '';
     els.worker.onchange = ()=> localStorage.setItem(WORKER_KEY, (els.worker.value||'').trim());
     els.region.value = localStorage.getItem(REGION_KEY) || '서울';
@@ -151,7 +157,7 @@
     function sessionConfig(){
       return { type:'session.update', session:{ type:'realtime', instructions: buildInstructions(),
         tools:[ weatherTool() ], tool_choice:'auto',
-        audio:{ input:{ transcription:{ model:'whisper-1' }, turn_detection:{ type:'server_vad', threshold:0.5, prefix_padding_ms:200, silence_duration_ms:500 } },
+        audio:{ input:{ transcription:{ model:'whisper-1' }, noise_reduction:{ type:(ENV[els.env.value]||ENV.normal).nr }, turn_detection:{ type:'server_vad', threshold:(ENV[els.env.value]||ENV.normal).th, prefix_padding_ms:200, silence_duration_ms:500 } },
                 output:{ voice: els.voice.value, speed: parseFloat(els.speed.value) } } } };
     }
 
@@ -168,7 +174,7 @@
       if(!key){ alert('OpenAI API Key를 입력해 주세요.'); return; }
       localStorage.setItem('oai_key', key); localStorage.setItem(REGION_KEY, (els.region.value||'서울').trim());
       els.start.disabled = true; turns = []; endRequested=false; ending=false;
-      try { setStatus('🎤 마이크 권한을 허용해 주세요...'); micStream = await navigator.mediaDevices.getUserMedia({audio:true}); }
+      try { setStatus('🎤 마이크 권한을 허용해 주세요...'); micStream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
       catch(e){ setStatus('❌ 마이크 권한이 거부되었습니다.'); els.start.disabled=false; return; }
       pc = new RTCPeerConnection();
       pc.ontrack = (e)=> els.audio.srcObject = e.streams[0];

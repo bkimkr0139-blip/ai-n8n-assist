@@ -115,7 +115,7 @@
       const key = els.key.value.trim(); if(!key){ alert('OpenAI API Key를 입력해 주세요.'); return; }
       localStorage.setItem('oai_key', key);
       els.start.disabled = true; turns=[]; endRequested=false; ending=false;
-      try { setStatus('🎤 마이크 권한을 허용해 주세요...'); micStream = await navigator.mediaDevices.getUserMedia({audio:true}); }
+      try { setStatus('🎤 마이크 권한을 허용해 주세요...'); micStream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
       catch(e){ setStatus('❌ 마이크 권한이 거부되었습니다.'); els.start.disabled=false; return; }
 
       pc = new RTCPeerConnection();
