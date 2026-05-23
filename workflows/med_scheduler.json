@@ -1,0 +1,135 @@
+{
+  "name": "med_scheduler",
+  "nodes": [
+    {
+      "id": "wh",
+      "name": "일정 수신(웹훅)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        -160
+      ],
+      "webhookId": "med-config",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "med-config",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      }
+    },
+    {
+      "id": "store",
+      "name": "일정 저장",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        -160
+      ],
+      "parameters": {
+        "jsCode": "const inp=$input.first().json;\nconst body=(inp && inp.body) ? inp.body : inp;\nconst chatId=String((body && body.chatId)||'').trim();\nconst schedule=Array.isArray(body && body.schedule)?body.schedule:[];\nconst sd=$getWorkflowStaticData('global');\nsd.schedules=sd.schedules||{};\nif(chatId) sd.schedules[chatId]=schedule;\nreturn [{ json:{ ok:true, chatId, count:schedule.length } }];"
+      }
+    },
+    {
+      "id": "tick",
+      "name": "5분마다",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        120
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/5 * * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "find",
+      "name": "복용시간 확인",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        120
+      ],
+      "parameters": {
+        "jsCode": "const sd=$getWorkflowStaticData('global');\nconst schedules=sd.schedules||{};\nconst now=new Date(Date.now()+9*3600*1000);\nconst hh=now.getUTCHours();\nconst mm=now.getUTCMinutes();\nconst out=[];\nfor(const chatId of Object.keys(schedules)){\n  for(const e of (schedules[chatId]||[])){\n    if(!e || !e.time) continue;\n    const p=String(e.time).split(':'); const eh=parseInt(p[0],10), em=parseInt(p[1],10);\n    if(eh===hh && em>=mm && em<mm+5){ out.push({ json:{ chatId, med:e.med||'', when:e.when||'', time:e.time } }); }\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "rem",
+      "name": "복약 알림",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        520,
+        120
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chatId }}",
+        "text": "=💊 약 드실 시간이에요. {{ $json.when }} {{ $json.med }} 드실 시간입니다. 통화로 안내받으시려면 아래를 눌러주세요:\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/care.html?purpose=med",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram Bot"
+        }
+      },
+      "webhookId": "b72dcdc9-e662-4453-9144-487e5ab1267c"
+    }
+  ],
+  "connections": {
+    "일정 수신(웹훅)": {
+      "main": [
+        [
+          {
+            "node": "일정 저장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5분마다": {
+      "main": [
+        [
+          {
+            "node": "복용시간 확인",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "복용시간 확인": {
+      "main": [
+        [
+          {
+            "node": "복약 알림",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Seoul"
+  }
+}

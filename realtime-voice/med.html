@@ -39,6 +39,16 @@
   </div>
 
   <div class="card">
+    <h2>🔔 n8n 알림 연동</h2>
+    <div class="row">
+      <input id="chatid" placeholder="어르신 텔레그램 ID" style="width:170px" />
+      <input id="n8nurl" class="med" placeholder="n8n 웹훅 URL (.../webhook/med-config)" />
+      <button id="syncBtn" class="alt">알림 동기화</button>
+    </div>
+    <div class="sub" id="syncstate" style="margin-top:6px">일정을 저장하면 자동으로 n8n에 동기화되어, 등록한 시간에 알림이 발송됩니다.</div>
+  </div>
+
+  <div class="card">
     <h2>✍️ 자연어로 한 번에</h2>
     <textarea id="nl" placeholder="예) 매일 식사 후 치매약 복용 안내, 매일 아침 영양제 안내, 점심 후에는 혈당 조절제, 매일 식사 전에는 유산균"></textarea>
     <div class="row" style="margin-top:8px"><button id="parseBtn">✨ AI로 정리해서 추가</button><span class="sub" style="margin:0">기존 일정에 더해집니다</span></div>
@@ -70,8 +80,22 @@
     $('key').value = localStorage.getItem('oai_key') || '';
     $('key').onchange = ()=> localStorage.setItem('oai_key', $('key').value.trim());
 
+    const N8N_URL_DEFAULT = 'https://hardware-finalize-faceted.ngrok-free.dev/webhook/med-config';
+    $('chatid').value = localStorage.getItem('med_chatid') || '';
+    $('n8nurl').value = localStorage.getItem('med_n8n_url') || N8N_URL_DEFAULT;
+    $('chatid').onchange = ()=> localStorage.setItem('med_chatid', $('chatid').value.trim());
+    $('n8nurl').onchange = ()=> localStorage.setItem('med_n8n_url', $('n8nurl').value.trim());
+    async function syncN8n(silent){
+      const chatId=($('chatid').value||'').trim(), url=($('n8nurl').value||'').trim();
+      if(!chatId||!url){ if(!silent) $('syncstate').textContent='어르신 텔레그램 ID와 n8n 웹훅 URL을 입력해 주세요.'; return; }
+      try{ const r=await fetch(url,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ chatId, schedule:load() }) });
+        $('syncstate').textContent = r.ok ? ('✅ n8n 알림에 동기화됨 ('+new Date().toLocaleTimeString()+')') : ('⚠️ 동기화 응답 '+r.status); }
+      catch(e){ $('syncstate').textContent='⚠️ n8n 연결 실패(주소/CORS 확인): '+(e.message||e); }
+    }
+    $('syncBtn').onclick = ()=> syncN8n(false);
+
     function load(){ try { return JSON.parse(localStorage.getItem(MED_KEY)||'[]'); } catch { return []; } }
-    function save(list){ list.sort((a,b)=> (a.time||'').localeCompare(b.time||'')); localStorage.setItem(MED_KEY, JSON.stringify(list)); render(); }
+    function save(list){ list.sort((a,b)=> (a.time||'').localeCompare(b.time||'')); localStorage.setItem(MED_KEY, JSON.stringify(list)); render(); syncN8n(true); }
     function setStatus(s){ const e=$('status'); e.style.display='block'; e.textContent=s; }
 
     function render(){

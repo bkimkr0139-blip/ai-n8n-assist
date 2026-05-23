@@ -11,7 +11,7 @@ n8n으로 만든 **텔레그램 개인 비서 봇**. 텔레그램으로 대화�
 - 📄 문서 첨부 시 자동 인덱싱(PGVector) → 질문하면 문서 근거로 답변(RAG)
 - 🖼️ **사진 분석**: 사진을 보내면 비전(gpt-4o-mini)으로 내용을 설명하고, "사진 등록"이라고 답하면 그 설명을 RAG에 임베딩(staticData에 임시 보관 후 확인 시 저장)
 - 💊 **복약 일정 관리 UI**: [`realtime-voice/med.html`](realtime-voice/med.html) — 시간 선택기 폼 + 자연어 입력("매일 아침 식후 치매약, 점심 후 혈당약…")을 AI가 일정표로 정리, 시간순 표로 추가/삭제. localStorage `med_schedule`에 저장되어 care.html 복약 통화에 자동 반영. 텔레그램 **"복약 설정/복약 등록"** → med.html 링크
-- 💊 **복약 알림**: `med_reminder`(Schedule Trigger, 기본 매일 08·13·19시 KST) → 어르신에게 텔레그램 알림 + 복약통화 링크(care.html?purpose=med). 어르신이 탭하면 등록된 생활지원사 이름으로 공손히 인사 후 복약 안내. (담당자 이름은 care-admin/care.html 설정에 등록) ⚠️ 브라우저는 정해진 시간에 스스로 전화벨을 울릴 수 없어, "알림(=벨)→탭하면 통화" 방식. 진짜 자동 발신 통화는 Twilio 등 전화망 연동 필요(향후)
+- 💊 **복약 알림(일정 연동)**: med.html에서 등록한 일정을 n8n `med_scheduler`로 동기화(웹훅, CORS) → 5분마다 현재 시각 확인 → 해당 약 시간에 어르신에게 텔레그램 알림 + 복약통화 링크(care.html?purpose=med). 일정은 med.html(유저별 localStorage)이 원본, n8n은 알림만 담당. ⚠️ 브라우저는 스스로 전화벨/자동발신 불가 → "알림(=벨)→탭하면 통화". SMS/전화/웹푸시·자동발신은 Twilio 등 전화망 연동 필요(향후)
 - 🌤️ **날씨**: 텔레그램에서 날씨를 물으면 지역을 되묻고 해당 지역 날씨를 검색해 답(Open-Meteo, 무료·키 불필요). 돌봄 통화(care.html)에선 거주지역(기본 서울, 수정 가능)을 Realtime function calling으로 조회해 맥락있게 안내
 - 🎙️ **음성 대화**: 음성 메시지를 보내면 Whisper로 전사 → 같은 파이프라인 처리 → 답변을 TTS 음성으로 회신 (텍스트로 보내면 텍스트로 답)
 - 📞 **실시간 음성대화(별도 웹앱)**: 텔레그램은 턴 기반이라 핸즈프리 실시간이 불가 → [`realtime-voice/`](realtime-voice/)에 OpenAI Realtime API 기반 브라우저 웹앱(마이크 안 누르고 연속 음성↔음성, `gpt-realtime`). **GitHub Pages 고정 URL**: https://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/ . 텔레그램 **"음성대화"** → 이 링크 회신
@@ -22,7 +22,7 @@ n8n으로 만든 **텔레그램 개인 비서 봇**. 텔레그램으로 대화�
 |---|---|
 | `workflows/telegram_bot.json` | 메인. Telegram Trigger → (문서)인덱싱 / (텍스트)RAG검색 → AI Agent → 이메일·대화 분기 |
 | `workflows/send_email_tool.json` | 서브. SMTP 이메일 발송 (Execute Workflow + Webhook 트리거) |
-| `workflows/med_reminder.json` | 복약 알림. Schedule Trigger(cron) → 어르신에게 텔레그램 알림+복약통화 링크. 시간/대상 chatId는 이 워크플로우에서 수정 |
+| `workflows/med_scheduler.json` | 복약 알림. Webhook(/med-config, CORS)로 med.html 일정 수신·저장 + Schedule(5분)로 시각 확인해 텔레그램 알림 발송. 일정 원본은 med.html(localStorage) |
 
 ---
 
