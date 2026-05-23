@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>💊 복약 일정 관리</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; max-width: 720px; margin: 0 auto; padding: 22px; background: #f6f8fb; color: #20242c; }
+  h1 { font-size: 1.5rem; color: #2e6fae; margin: 6px 0 2px; }
+  .sub { color: #6b6b6b; font-size: .95rem; margin-bottom: 14px; }
+  .card { background: #fff; border: 1px solid #dde4ee; border-radius: 14px; padding: 16px; margin: 12px 0; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+  h2 { font-size: 1.05rem; margin: 0 0 10px; color: #34507e; }
+  input, select, textarea, button { font-size: 1rem; padding: 11px; border-radius: 10px; border: 1px solid #cdd4e2; font-family: inherit; }
+  textarea { width: 100%; min-height: 90px; line-height: 1.5; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row > * { flex: 0 0 auto; }
+  input[type=time] { width: 120px; }
+  input.med { flex: 1; min-width: 140px; }
+  button { color: #fff; background: #2e6fae; cursor: pointer; font-weight: 700; border: none; }
+  button.alt { background: #fff; color: #2e6fae; border: 1px solid #2e6fae; }
+  button.mini { background: #fff; color: #b3433a; border: 1px solid #e3b6b2; padding: 6px 10px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eef2f7; font-size: 1rem; }
+  th { color: #6b7787; font-size: .85rem; }
+  .time { font-weight: 800; color: #2e6fae; white-space: nowrap; }
+  .when { display: inline-block; background: #eef4fb; color: #34507e; border-radius: 999px; padding: 2px 10px; font-size: .85rem; }
+  #status { padding: 10px 12px; border-radius: 10px; background: #eef4fb; margin: 8px 0; }
+  .empty { color: #9aa4b1; text-align: center; padding: 18px; }
+</style>
+</head>
+<body>
+  <h1>💊 복약 일정 관리</h1>
+  <div class="sub">시간을 골라 약을 추가하거나, 자연어로 한 번에 적으면 AI가 일정표로 정리합니다. 이 일정은 어르신 통화(복약 안내)에 자동으로 쓰입니다.</div>
+
+  <div class="card">
+    <input id="key" type="password" placeholder="OpenAI API Key (sk-...) — 자연어 정리에 필요, 처음 한 번만" autocomplete="off" style="width:100%" />
+  </div>
+
+  <div class="card">
+    <h2>✍️ 자연어로 한 번에</h2>
+    <textarea id="nl" placeholder="예) 매일 식사 후 치매약 복용 안내, 매일 아침 영양제 안내, 점심 후에는 혈당 조절제, 매일 식사 전에는 유산균"></textarea>
+    <div class="row" style="margin-top:8px"><button id="parseBtn">✨ AI로 정리해서 추가</button><span class="sub" style="margin:0">기존 일정에 더해집니다</span></div>
+  </div>
+
+  <div class="card">
+    <h2>➕ 직접 추가</h2>
+    <div class="row">
+      <input type="time" id="ftime" value="08:00" />
+      <select id="fwhen">
+        <option>아침 식후</option><option>아침 식전</option><option>점심 식후</option><option>점심 식전</option>
+        <option>저녁 식후</option><option>저녁 식전</option><option>취침 전</option><option>공복</option><option>수시</option>
+      </select>
+      <input class="med" id="fmed" placeholder="약 이름 (예: 치매약)" />
+      <button id="addBtn">추가</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📅 복약 일정 <span id="cnt" class="sub"></span></h2>
+    <div id="status" style="display:none"></div>
+    <table><thead><tr><th>시간</th><th>시점</th><th>약</th><th></th></tr></thead><tbody id="tbody"></tbody></table>
+    <div class="row" style="margin-top:10px"><button id="clearBtn" class="alt">전체 삭제</button></div>
+  </div>
+
+  <script>
+    const MED_KEY = 'med_schedule';
+    const $ = (id)=>document.getElementById(id);
+    $('key').value = localStorage.getItem('oai_key') || '';
+    $('key').onchange = ()=> localStorage.setItem('oai_key', $('key').value.trim());
+
+    function load(){ try { return JSON.parse(localStorage.getItem(MED_KEY)||'[]'); } catch { return []; } }
+    function save(list){ list.sort((a,b)=> (a.time||'').localeCompare(b.time||'')); localStorage.setItem(MED_KEY, JSON.stringify(list)); render(); }
+    function setStatus(s){ const e=$('status'); e.style.display='block'; e.textContent=s; }
+
+    function render(){
+      const list = load(); const tb = $('tbody'); tb.innerHTML='';
+      $('cnt').textContent = list.length ? '('+list.length+'개)' : '';
+      if(!list.length){ tb.innerHTML = '<tr><td colspan="4" class="empty">아직 등록된 약이 없어요. 위에서 추가해 주세요.</td></tr>'; return; }
+      for(const it of list){
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td class="time">'+(it.time||'')+'</td><td><span class="when">'+(it.when||'')+'</span></td><td>'+(it.med||'')+'</td>';
+        const td = document.createElement('td'); const b=document.createElement('button'); b.className='mini'; b.textContent='삭제';
+        b.onclick = ()=>{ const l=load().filter(x=>x.id!==it.id); save(l); }; td.appendChild(b); tr.appendChild(td); tb.appendChild(tr);
+      }
+    }
+    function addEntry(time, when, med){ const l=load(); l.push({ id: Date.now()+'_'+Math.random().toString(36).slice(2,6), time, when, med }); save(l); }
+
+    $('addBtn').onclick = ()=>{ const med=$('fmed').value.trim(); if(!med){ alert('약 이름을 입력하세요.'); return; } addEntry($('ftime').value, $('fwhen').value, med); $('fmed').value=''; setStatus('✅ 추가했어요.'); };
+    $('clearBtn').onclick = ()=>{ if(confirm('복약 일정을 전부 지울까요?')){ localStorage.removeItem(MED_KEY); render(); } };
+
+    $('parseBtn').onclick = async ()=>{
+      const key = $('key').value.trim(); if(!key){ alert('자연어 정리는 OpenAI 키가 필요해요.'); return; }
+      localStorage.setItem('oai_key', key);
+      const text = $('nl').value.trim(); if(!text){ alert('정리할 내용을 적어주세요.'); return; }
+      setStatus('✨ AI가 정리하는 중...');
+      const sys = '너는 복약 일정 정리 도우미다. 사용자의 한국어 복약 설명을 JSON으로 변환한다. '+
+        '형식: {"items":[{"time":"HH:MM","when":"아침 식후 같은 시점","med":"약 이름"}]}. '+
+        '식사 기준 기본 시간: 아침 08:00, 점심 12:30, 저녁 18:30, 취침 전 21:30. 식전이면 식사 30분 전(아침 07:30, 점심 12:00, 저녁 18:00), 식후면 식사 시간. 공복은 07:00. '+
+        '시간이 불명확하면 시점에 맞는 기본값을 쓴다. JSON만 출력.';
+      try{
+        const r = await fetch('https://api.openai.com/v1/chat/completions', { method:'POST', headers:{ 'Authorization':'Bearer '+key, 'Content-Type':'application/json' },
+          body: JSON.stringify({ model:'gpt-4o-mini', temperature:0.2, response_format:{type:'json_object'}, messages:[{role:'system',content:sys},{role:'user',content:text}] }) });
+        if(!r.ok){ setStatus('❌ 정리 실패 ('+r.status+'). 키를 확인해 주세요.'); return; }
+        const d = await r.json(); const obj = JSON.parse(d.choices[0].message.content||'{}');
+        const items = obj.items||[]; if(!items.length){ setStatus('정리된 항목이 없어요. 더 구체적으로 적어주세요.'); return; }
+        const l = load(); for(const it of items){ if(it.med) l.push({ id: Date.now()+'_'+Math.random().toString(36).slice(2,6), time: it.time||'08:00', when: it.when||'', med: it.med }); }
+        save(l); $('nl').value=''; setStatus('✅ '+items.length+'개 항목을 일정에 추가했어요.');
+      }catch(e){ setStatus('❌ 오류: '+(e.message||e)); }
+    };
+
+    render();
+  </script>
+</body>
+</html>
