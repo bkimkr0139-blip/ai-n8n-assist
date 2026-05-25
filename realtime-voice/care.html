@@ -73,6 +73,13 @@
     const N8N_BASE = 'https://hardware-finalize-faceted.ngrok-free.dev/webhook';
     const TOKEN_URL = N8N_BASE + '/realtime-token';
     const SUMMARY_URL = N8N_BASE + '/care-summary';
+    const PROFILE_GET_URL = N8N_BASE + '/care-profile';
+    const PROFILE_SAVE_URL = N8N_BASE + '/care-profile-save';
+    const SESSION_URL = N8N_BASE + '/care-session';
+    const PING_URL = N8N_BASE + '/care-ping';
+    // 단말기 고유 ID — 최초 1회 생성 후 영구 보관. 같은 단말기 재접속 시 동일 인물로 인식하는 기준.
+    function getDeviceId(){ let d=''; try{ d=localStorage.getItem('care_device_id')||''; }catch(e){} if(!d){ d=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('dev-'+Date.now()+'-'+Math.random().toString(36).slice(2)); try{ localStorage.setItem('care_device_id', d); }catch(e){} } return d; }
+    const DEVICE_ID = getDeviceId();
     const MEM_KEY = 'care_memory_v1';
     const CFG_KEY = 'care_config';
     const REGION_KEY = 'care_region';
@@ -96,20 +103,49 @@
                   log:$('log'), audio:$('audio'), memstate:$('memstate'), memtext:$('memtext'), clearmem:$('clearmem') };
     const ENV = { quiet:{nr:'near_field',th:0.45}, normal:{nr:'far_field',th:0.55}, noisy:{nr:'far_field',th:0.72} };
     els.env.value = localStorage.getItem('care_env') || 'normal';
-    els.env.onchange = ()=> localStorage.setItem('care_env', els.env.value);
     els.worker.value = localStorage.getItem(WORKER_KEY) || '';
-    els.worker.onchange = ()=> localStorage.setItem(WORKER_KEY, (els.worker.value||'').trim());
     els.region.value = localStorage.getItem(REGION_KEY) || '서울';
-    els.region.onchange = ()=> localStorage.setItem(REGION_KEY, (els.region.value||'서울').trim());
+    // 설정 변경 시 localStorage + 서버(device_id 기준) 양쪽에 저장 → 재접속 시 서버에서 복원
+    async function saveProfile(){
+      try{ localStorage.setItem(WORKER_KEY,(els.worker.value||'').trim()); localStorage.setItem(REGION_KEY,(els.region.value||'서울').trim()); localStorage.setItem('care_env', els.env.value); }catch(e){}
+      try{ await fetch(PROFILE_SAVE_URL,{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ device_id:DEVICE_ID, name:(els.worker.value||'').trim(), region:(els.region.value||'서울').trim(), voice:els.voice.value, env:els.env.value, speed:els.speed.value }) }); }catch(e){}
+    }
+    els.worker.onchange = saveProfile; els.region.onchange = saveProfile; els.voice.onchange = saveProfile; els.speed.onchange = saveProfile; els.env.onchange = saveProfile;
+    // 같은 단말기로 재접속 시 서버에서 프로필·기억을 불러와 동일 인물로 이어감
+    async function loadProfile(){
+      try{
+        const r=await fetch(PROFILE_GET_URL+'?device_id='+encodeURIComponent(DEVICE_ID),{ headers:{ 'ngrok-skip-browser-warning':'true' } });
+        if(!r.ok) return; const p=await r.json();
+        if(p&&p.known){
+          if(p.name) els.worker.value=p.name;
+          if(p.region) els.region.value=p.region;
+          if(p.voice) els.voice.value=p.voice;
+          if(p.env) els.env.value=p.env;
+          if(p.speed) els.speed.value=p.speed;
+          if(p.memo){ pastMem=p.memo; saveMem(p.memo); }
+          els.memstate.textContent='📓 이 단말기로 '+(p.visits||0)+'번째 · 이전 기억을 불러왔어요 (같은 분으로 이어갑니다)';
+        }
+      }catch(e){}
+    }
 
     let pc=null, dc=null, micStream=null, aiBuf='', turns=[], pastMem='', endRequested=false, ending=false;
+    let sessionStart=0, tokIn=0, tokOut=0, tokTotal=0, pingTimer=null;
     const setStatus = (s)=> els.status.textContent = s;
     function add(cls, text){ const d=document.createElement('div'); d.className='msg '+cls; d.textContent=text; els.log.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'end'}); }
     function loadMem(){ try { return localStorage.getItem(MEM_KEY)||''; } catch { return ''; } }
     function saveMem(t){ try { localStorage.setItem(MEM_KEY, t); } catch {} ; refreshMemUI(); }
     function refreshMemUI(){ const m=loadMem(); els.memstate.textContent = m ? '📓 이전 통화 기록 있음 (다음 통화에 반영됩니다)' : '📓 이전 기록 없음 (첫 통화)'; els.memtext.textContent = m || '(없음)'; }
     refreshMemUI();
+    loadProfile();
     els.clearmem.onclick = ()=>{ if(confirm('저장된 어르신 메모를 지울까요?')){ try{localStorage.removeItem(MEM_KEY);}catch{}; refreshMemUI(); } };
+    // 통화 중 주기적으로 서버에 접속 신호 → 관리자 대시보드의 온라인 상태 표시용
+    async function ping(){ try{ await fetch(PING_URL,{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ device_id:DEVICE_ID }) }); }catch(e){} }
+    // 통화 종료 시 접속 로그 저장(접속횟수·대화시간·토큰사용량·대화기록) → 관리자 대시보드 집계
+    async function logSession(){
+      const dur = sessionStart ? Math.round((Date.now()-sessionStart)/1000) : 0;
+      if(dur < 2 && turns.length === 0) return;
+      try{ await fetch(SESSION_URL,{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ device_id:DEVICE_ID, started_at:new Date(sessionStart||Date.now()).toISOString(), ended_at:new Date().toISOString(), duration_sec:dur, turns:turns.length, input_tokens:tokIn, output_tokens:tokOut, total_tokens:tokTotal, transcript:turns.join('\n') }) }); }catch(e){}
+    }
 
     // ===== 날씨 (Open-Meteo, 무료/키 불필요/CORS 허용) =====
     const CITY = {'서울':'Seoul','부산':'Busan','대구':'Daegu','인천':'Incheon','광주':'Gwangju','대전':'Daejeon','울산':'Ulsan','세종':'Sejong',
@@ -191,8 +227,9 @@
     }
 
     async function start(){
-      localStorage.setItem(REGION_KEY, (els.region.value||'서울').trim());
+      saveProfile();
       els.start.disabled = true; turns = []; endRequested=false; ending=false;
+      sessionStart = Date.now(); tokIn=0; tokOut=0; tokTotal=0;
       // 서버(n8n)에서 단기 접속 토큰 발급 — API 키는 서버에만 있고 브라우저로 내려오지 않음
       let token='';
       try { setStatus('🔑 연결 준비 중...'); const tr=await fetch(TOKEN_URL,{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:'{}' }); if(tr.ok){ const tj=await tr.json(); token=(tj&&tj.value)||''; } }
@@ -211,6 +248,7 @@
         else if(t.endsWith('audio_transcript.delta')){ aiBuf += (ev.delta||''); }
         else if(t.endsWith('audio_transcript.done')){ const s=(ev.transcript||aiBuf).trim(); if(s){ add('ai','💚 '+s); turns.push('도우미: '+s); } aiBuf='';
           if(endRequested && !ending){ ending=true; setStatus('통화를 마무리하는 중이에요...'); setTimeout(()=>stop(), Math.max(2500, s.length*130)); } }
+        else if(t==='response.done'){ const u=ev.response&&ev.response.usage; if(u){ tokIn+=(u.input_tokens||0); tokOut+=(u.output_tokens||0); tokTotal+=(u.total_tokens||0); } }
         else if(t==='error'){ add('sys','⚠️ '+JSON.stringify(ev.error||ev)); }
       };
       pc.onconnectionstatechange = ()=>{ if(['failed','disconnected','closed'].includes(pc.connectionState) && !ending) setStatus('통화가 종료되었어요 ('+pc.connectionState+')'); };
@@ -221,6 +259,7 @@
         if(!resp.ok){ const b=await resp.text().catch(()=> ''); setStatus('❌ 연결 실패 ('+resp.status+'): '+b.slice(0,400)); cleanup(); return; }
         await pc.setRemoteDescription({ type:'answer', sdp: await resp.text() });
         els.stop.disabled = false;
+        ping(); if(pingTimer) clearInterval(pingTimer); pingTimer=setInterval(ping, 15000);
       } catch(err){ setStatus('❌ 오류: '+(err&&err.message?err.message:err)); cleanup(); }
     }
 
@@ -229,14 +268,14 @@
       const convo = turns.join('\n');
       try{
         const r = await fetch(SUMMARY_URL, { method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' },
-          body: JSON.stringify({ past: pastMem||'(없음)', convo }) });
+          body: JSON.stringify({ device_id: DEVICE_ID, past: pastMem||'(없음)', convo }) });
         if(r.ok){ const d=await r.json(); const m=d&&d.memo; if(m){ saveMem(m.trim()); add('sys','📓 이번 대화를 기억에 저장했어요.'); return; } }
       }catch{}
       saveMem((pastMem? pastMem+'\n':'')+ '[최근통화]\n'+ turns.slice(-12).join('\n'));
     }
 
-    function cleanup(){ try{if(dc)dc.close();}catch{} try{if(pc)pc.close();}catch{} try{if(micStream)micStream.getTracks().forEach(t=>t.stop());}catch{} pc=dc=micStream=null; els.start.disabled=false; els.stop.disabled=true; }
-    async function stop(){ setStatus('통화를 정리하고 기억에 저장하는 중...'); cleanup(); await updateMemory(); setStatus('■ 통화가 끝났어요. 수고하셨습니다.'); }
+    function cleanup(){ if(pingTimer){ clearInterval(pingTimer); pingTimer=null; } try{if(dc)dc.close();}catch{} try{if(pc)pc.close();}catch{} try{if(micStream)micStream.getTracks().forEach(t=>t.stop());}catch{} pc=dc=micStream=null; els.start.disabled=false; els.stop.disabled=true; }
+    async function stop(){ setStatus('통화를 정리하고 기억에 저장하는 중...'); cleanup(); await logSession(); await updateMemory(); setStatus('■ 통화가 끝났어요. 수고하셨습니다.'); }
     els.start.onclick = start; els.stop.onclick = ()=>{ ending=true; stop(); };
   </script>
 </body>

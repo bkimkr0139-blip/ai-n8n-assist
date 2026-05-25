@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>돌봄 통합 관리자 — 접속 모니터링</title>
+<style>
+  :root{ --bg:#0f172a; --card:#1e293b; --card2:#243449; --line:#334155; --txt:#e2e8f0; --mut:#94a3b8; --on:#22c55e; --off:#64748b; --accent:#38bdf8; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--txt); font-family:-apple-system,'Segoe UI',Roboto,'Malgun Gothic',sans-serif; }
+  header{ padding:14px 16px; background:#0b1220; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; flex-wrap:wrap; position:sticky; top:0; z-index:5; }
+  header h1{ font-size:1.05rem; margin:0; }
+  header .sp{ flex:1; }
+  .pill{ font-size:.78rem; color:var(--mut); border:1px solid var(--line); border-radius:999px; padding:3px 10px; }
+  button{ background:var(--accent); color:#04263a; border:0; border-radius:8px; padding:8px 12px; font-weight:700; cursor:pointer; }
+  button.ghost{ background:transparent; color:var(--txt); border:1px solid var(--line); font-weight:500; }
+  input{ background:#0b1220; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:9px 11px; font-size:1rem; }
+  main{ padding:16px; max-width:1100px; margin:0 auto; }
+  /* gate */
+  #gate{ max-width:380px; margin:12vh auto; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:22px; }
+  #gate h2{ margin:0 0 6px; } #gate p{ color:var(--mut); font-size:.9rem; margin:0 0 14px; }
+  #gate .row{ display:flex; gap:8px; } #gate input{ flex:1; }
+  #gateErr{ color:#f87171; font-size:.85rem; margin-top:10px; min-height:1em; }
+  /* summary */
+  .summary{ display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:18px; }
+  .stat{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .stat .k{ color:var(--mut); font-size:.78rem; } .stat .v{ font-size:1.5rem; font-weight:800; margin-top:4px; }
+  h2.sec{ font-size:1rem; color:var(--mut); margin:18px 0 10px; font-weight:600; }
+  /* devices */
+  .devs{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
+  .dev{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; cursor:pointer; transition:.15s; }
+  .dev:hover{ border-color:var(--accent); }
+  .dev .top{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .dot{ width:9px; height:9px; border-radius:50%; background:var(--off); flex:0 0 auto; }
+  .dot.on{ background:var(--on); box-shadow:0 0 0 4px rgba(34,197,94,.18); }
+  .dev .name{ font-weight:700; } .dev .did{ color:var(--mut); font-size:.72rem; margin-left:auto; }
+  .dev .grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:.86rem; margin-top:6px; }
+  .dev .grid .m{ color:var(--mut); }
+  .badge{ font-size:.72rem; padding:2px 8px; border-radius:999px; background:var(--card2); color:var(--mut); }
+  .badge.on{ color:var(--on); }
+  /* sessions table */
+  .tbl{ width:100%; border-collapse:collapse; font-size:.86rem; background:var(--card); border-radius:12px; overflow:hidden; }
+  .tbl th,.tbl td{ padding:9px 11px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+  .tbl th{ color:var(--mut); font-weight:600; font-size:.78rem; }
+  .tbl tr:last-child td{ border-bottom:0; }
+  .wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .empty{ color:var(--mut); padding:18px; text-align:center; }
+  /* modal */
+  .modal{ position:fixed; inset:0; background:rgba(2,6,23,.7); display:flex; align-items:flex-end; justify-content:center; z-index:20; }
+  .sheet{ background:var(--card); width:100%; max-width:720px; max-height:88vh; overflow:auto; border-radius:16px 16px 0 0; padding:18px; border:1px solid var(--line); }
+  .sheet h3{ margin:0 0 2px; } .sheet .sub{ color:var(--mut); font-size:.82rem; margin-bottom:12px; }
+  .memo{ background:#0b1220; border:1px solid var(--line); border-radius:10px; padding:12px; white-space:pre-wrap; font-size:.88rem; line-height:1.5; }
+  .ses{ border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-top:8px; }
+  .ses .h{ display:flex; gap:10px; font-size:.82rem; color:var(--mut); flex-wrap:wrap; }
+  .ses pre{ white-space:pre-wrap; font-size:.85rem; margin:8px 0 0; line-height:1.5; max-height:240px; overflow:auto; }
+  .closebar{ display:flex; justify-content:flex-end; margin-bottom:8px; }
+  @media (max-width:760px){ .summary{ grid-template-columns:repeat(2,1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🩺 돌봄 통합 관리자</h1>
+  <span class="pill" id="clock">—</span>
+  <div class="sp"></div>
+  <span class="pill" id="autostate">자동새로고침 ON</span>
+  <button class="ghost" id="refresh">새로고침</button>
+  <button class="ghost" id="logout" hidden>로그아웃</button>
+</header>
+
+<main>
+  <div id="gate">
+    <h2>관리자 접속</h2>
+    <p>관리자 패스코드를 입력하세요. 모바일·PC 어디서나 접속할 수 있습니다.</p>
+    <div class="row"><input id="pass" type="password" placeholder="패스코드" /><button id="enter">접속</button></div>
+    <div id="gateErr"></div>
+  </div>
+
+  <div id="dash" hidden>
+    <div class="summary">
+      <div class="stat"><div class="k">접속 단말기</div><div class="v" id="s-dev">0</div></div>
+      <div class="stat"><div class="k">현재 통화중</div><div class="v" id="s-on" style="color:var(--on)">0</div></div>
+      <div class="stat"><div class="k">총 통화수</div><div class="v" id="s-ses">0</div></div>
+      <div class="stat"><div class="k">총 통화시간</div><div class="v" id="s-dur">0</div></div>
+      <div class="stat"><div class="k">총 토큰</div><div class="v" id="s-tok">0</div></div>
+    </div>
+
+    <h2 class="sec">단말기별 접속 상태 (카드를 누르면 상세)</h2>
+    <div class="devs" id="devices"></div>
+    <div class="empty" id="devEmpty" hidden>아직 접속한 단말기가 없습니다.</div>
+
+    <h2 class="sec">최근 통화 로그</h2>
+    <div class="wrap">
+      <table class="tbl"><thead><tr><th>시각</th><th>단말기/담당</th><th>통화시간</th><th>대화수</th><th>토큰</th></tr></thead>
+      <tbody id="sessions"></tbody></table>
+    </div>
+  </div>
+</main>
+
+<div id="detail" class="modal" hidden><div class="sheet">
+  <div class="closebar"><button class="ghost" id="closeDetail">닫기</button></div>
+  <h3 id="dTitle">단말기 상세</h3>
+  <div class="sub" id="dSub"></div>
+  <div style="font-weight:700;margin:10px 0 6px">📓 누적 기억(메모)</div>
+  <div class="memo" id="dMemo">(없음)</div>
+  <div style="font-weight:700;margin:16px 0 6px">🗒️ 통화 기록</div>
+  <div id="dSessions"></div>
+</div></div>
+
+<script>
+  const N8N_BASE = 'https://hardware-finalize-faceted.ngrok-free.dev/webhook';
+  const ADMIN_URL = N8N_BASE + '/admin-data';
+  const $ = (id)=>document.getElementById(id);
+  let DATA = { devices:[], sessions:[] };
+  let timer = null, auto = true;
+
+  const num = (n)=> (parseInt(n)||0).toLocaleString();
+  function dur(sec){ sec=parseInt(sec)||0; const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60; if(h) return h+'시간 '+m+'분'; if(m) return m+'분 '+s+'초'; return s+'초'; }
+  function rel(iso){ if(!iso) return '없음'; const d=new Date(iso); const s=Math.floor((Date.now()-d.getTime())/1000); if(s<0) return '방금'; if(s<60) return s+'초 전'; if(s<3600) return Math.floor(s/60)+'분 전'; if(s<86400) return Math.floor(s/3600)+'시간 전'; return Math.floor(s/86400)+'일 전'; }
+  function tm(iso){ if(!iso) return '-'; const d=new Date(iso); return d.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+  function shortId(id){ return (id||'').slice(0,8); }
+  function getPass(){ try{ return localStorage.getItem('care_admin_pass')||''; }catch(e){ return ''; } }
+
+  async function fetchData(){
+    const pass = getPass(); if(!pass) return { error:'nopass' };
+    try{
+      const r = await fetch(ADMIN_URL+'?pass='+encodeURIComponent(pass), { headers:{ 'ngrok-skip-browser-warning':'true' } });
+      if(!r.ok) return { error:'http '+r.status };
+      return await r.json();
+    }catch(e){ return { error:'network' }; }
+  }
+
+  function render(){
+    const devs = DATA.devices||[], ses = DATA.sessions||[];
+    const onCount = devs.filter(d=>d.online===true||d.online==='t'||d.online===1).length;
+    $('s-dev').textContent = num(devs.length);
+    $('s-on').textContent = num(onCount);
+    $('s-ses').textContent = num(ses.length>=100? '100+' : ses.length);
+    $('s-dur').textContent = dur(devs.reduce((a,d)=>a+(parseInt(d.total_duration)||0),0));
+    $('s-tok').textContent = num(devs.reduce((a,d)=>a+(parseInt(d.total_tokens)||0),0));
+
+    const box = $('devices'); box.innerHTML='';
+    $('devEmpty').hidden = devs.length>0;
+    devs.forEach(d=>{
+      const on = (d.online===true||d.online==='t'||d.online===1);
+      const el = document.createElement('div'); el.className='dev';
+      el.innerHTML =
+        '<div class="top"><span class="dot '+(on?'on':'')+'"></span>'+
+        '<span class="name">'+ (esc(d.name)||'(이름 미설정)') +'</span>'+
+        '<span class="did">'+ shortId(d.device_id) +'</span></div>'+
+        '<div><span class="badge '+(on?'on':'')+'">'+(on?'🟢 통화중':'⚪ 오프라인')+'</span> '+
+        '<span class="badge">'+ (esc(d.region)||'지역?') +'</span></div>'+
+        '<div class="grid">'+
+          '<div><span class="m">통화수</span> '+num(d.sessions)+'</div>'+
+          '<div><span class="m">통화시간</span> '+dur(d.total_duration)+'</div>'+
+          '<div><span class="m">토큰</span> '+num(d.total_tokens)+'</div>'+
+          '<div><span class="m">최근접속</span> '+rel(d.last_ping||d.last_at)+'</div>'+
+        '</div>';
+      el.onclick = ()=> openDetail(d.device_id);
+      box.appendChild(el);
+    });
+
+    const tb = $('sessions'); tb.innerHTML='';
+    if(!ses.length){ tb.innerHTML='<tr><td colspan="5" class="empty">통화 기록이 없습니다.</td></tr>'; }
+    ses.slice(0,40).forEach(s=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML='<td>'+tm(s.started_at)+'</td><td>'+(esc(s.name)||shortId(s.device_id))+'</td><td>'+dur(s.duration_sec)+'</td><td>'+num(s.turns)+'</td><td>'+num(s.total_tokens)+'</td>';
+      tb.appendChild(tr);
+    });
+  }
+
+  function esc(s){ return (s==null?'':String(s)).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+
+  function openDetail(deviceId){
+    const d = (DATA.devices||[]).find(x=>x.device_id===deviceId)||{};
+    const ses = (DATA.sessions||[]).filter(x=>x.device_id===deviceId);
+    $('dTitle').textContent = (d.name||'(이름 미설정)')+' — '+ (d.region||'');
+    $('dSub').textContent = '단말기 '+shortId(deviceId)+' · 통화 '+num(d.sessions)+'회 · 누적 '+dur(d.total_duration)+' · 토큰 '+num(d.total_tokens)+' · 최근 '+rel(d.last_ping||d.last_at);
+    $('dMemo').textContent = d.memo || '(아직 기억이 없습니다)';
+    const sb=$('dSessions'); sb.innerHTML='';
+    if(!ses.length){ sb.innerHTML='<div class="empty">통화 기록이 없습니다.</div>'; }
+    ses.forEach(s=>{
+      const el=document.createElement('div'); el.className='ses';
+      el.innerHTML='<div class="h"><span>🕒 '+tm(s.started_at)+'</span><span>⏱ '+dur(s.duration_sec)+'</span><span>💬 '+num(s.turns)+'</span><span>🎟 '+num(s.total_tokens)+' 토큰</span></div>'+
+        (s.transcript? '<pre>'+esc(s.transcript)+'</pre>' : '<pre style="color:#64748b">(대화 내용 없음)</pre>');
+      sb.appendChild(el);
+    });
+    $('detail').hidden=false;
+  }
+  $('closeDetail').onclick = ()=> $('detail').hidden=true;
+  $('detail').onclick = (e)=>{ if(e.target===$('detail')) $('detail').hidden=true; };
+
+  async function load(){
+    const res = await fetchData();
+    if(res && res.error){
+      if(res.error==='nopass'){ showGate(); return; }
+      // 인증 실패면 게이트로
+      if(JSON.stringify(res).indexOf('unauthorized')>=0){ try{localStorage.removeItem('care_admin_pass');}catch(e){} showGate('패스코드가 올바르지 않습니다.'); return; }
+      $('clock').textContent='연결 오류'; return;
+    }
+    if(res && res.error==='unauthorized'){ showGate('패스코드가 올바르지 않습니다.'); return; }
+    if(res && res.unauthorized || (res && res.error==='unauthorized')){ showGate('패스코드가 올바르지 않습니다.'); return; }
+    if(res && !res.devices && (res.error||res.message)){ $('clock').textContent='오류'; return; }
+    DATA = res; render(); $('clock').textContent='업데이트 '+new Date().toLocaleTimeString('ko-KR');
+  }
+
+  function showDash(){ $('gate').hidden=true; $('dash').hidden=false; $('logout').hidden=false; load(); startAuto(); }
+  function showGate(err){ $('dash').hidden=true; $('gate').hidden=false; $('logout').hidden=true; if(err) $('gateErr').textContent=err; stopAuto(); }
+  function startAuto(){ stopAuto(); if(auto) timer=setInterval(load, 15000); }
+  function stopAuto(){ if(timer){ clearInterval(timer); timer=null; } }
+
+  $('enter').onclick = async ()=>{
+    const p=$('pass').value.trim(); if(!p){ $('gateErr').textContent='패스코드를 입력하세요.'; return; }
+    try{ localStorage.setItem('care_admin_pass', p); }catch(e){}
+    $('gateErr').textContent='확인 중...';
+    const res = await fetchData();
+    if(res && (res.error==='unauthorized' || JSON.stringify(res).indexOf('unauthorized')>=0)){ try{localStorage.removeItem('care_admin_pass');}catch(e){} $('gateErr').textContent='패스코드가 올바르지 않습니다.'; return; }
+    if(res && res.error){ $('gateErr').textContent='연결 오류: '+res.error; return; }
+    DATA=res; showDash(); render();
+  };
+  $('pass').addEventListener('keydown', e=>{ if(e.key==='Enter') $('enter').click(); });
+  $('refresh').onclick = load;
+  $('logout').onclick = ()=>{ try{localStorage.removeItem('care_admin_pass');}catch(e){} showGate(); };
+  $('autostate').onclick = ()=>{ auto=!auto; $('autostate').textContent='자동새로고침 '+(auto?'ON':'OFF'); startAuto(); };
+
+  // 시작: 저장된 패스코드 있으면 바로 시도
+  if(getPass()) showDash(); else showGate();
+</script>
+</body>
+</html>

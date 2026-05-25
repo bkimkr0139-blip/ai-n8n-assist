@@ -8,3 +8,34 @@ CREATE TABLE IF NOT EXISTS med_schedules (
   schedule   jsonb NOT NULL DEFAULT '[]'::jsonb,
   updated_at timestamptz DEFAULT now()
 );
+
+-- 단말기(device)별 어르신 프로필/기억(care.html이 device_id 기준으로 저장·복원, care_api가 관리)
+CREATE TABLE IF NOT EXISTS care_profiles (
+  device_id  text PRIMARY KEY,
+  name       text DEFAULT '',
+  region     text DEFAULT '',
+  voice      text DEFAULT '',
+  env        text DEFAULT '',
+  speed      text DEFAULT '',
+  memo       text DEFAULT '',
+  visits     int DEFAULT 0,
+  last_ping  timestamptz,
+  first_seen timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- 통화 접속 로그(접속횟수·통화시간·토큰사용량·대화기록 → admin.html 모니터링 대시보드 집계)
+CREATE TABLE IF NOT EXISTS care_sessions (
+  id            bigserial PRIMARY KEY,
+  device_id     text NOT NULL,
+  started_at    timestamptz,
+  ended_at      timestamptz,
+  duration_sec  int DEFAULT 0,
+  turns         int DEFAULT 0,
+  input_tokens  int DEFAULT 0,
+  output_tokens int DEFAULT 0,
+  total_tokens  int DEFAULT 0,
+  transcript    text DEFAULT '',
+  created_at    timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS care_sessions_dev_idx ON care_sessions(device_id, started_at DESC);

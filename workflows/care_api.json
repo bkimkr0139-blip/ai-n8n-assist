@@ -6,21 +6,29 @@
       "name": "토큰요청",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [0, 0],
-      "webhookId": "realtime-token",
+      "position": [
+        0,
+        -200
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "realtime-token",
         "responseMode": "lastNode",
-        "options": { "allowedOrigins": "*" }
-      }
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "realtime-token"
     },
     {
       "id": "mint",
       "name": "토큰발급",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [220, 0],
+      "position": [
+        220,
+        -200
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.openai.com/v1/realtime/client_secrets",
@@ -31,14 +39,22 @@
         "jsonBody": "={{ JSON.stringify({ session: { type: 'realtime', model: 'gpt-realtime' } }) }}",
         "options": {}
       },
-      "credentials": { "openAiApi": { "id": "", "name": "OpenAI API" } }
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAI 2026-05"
+        }
+      }
     },
     {
       "id": "tokout",
       "name": "토큰응답",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 0],
+      "position": [
+        440,
+        -200
+      ],
       "parameters": {
         "jsCode": "const d=$input.first().json||{};\nreturn [{ json:{ value: d.value||'', expires_at: d.expires_at||0 } }];"
       }
@@ -48,23 +64,31 @@
       "name": "요약요청",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [0, 220],
-      "webhookId": "care-summary",
+      "position": [
+        0,
+        0
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "care-summary",
         "responseMode": "lastNode",
-        "options": { "allowedOrigins": "*" }
-      }
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "care-summary"
     },
     {
       "id": "sumbuild",
       "name": "요약프롬프트",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [220, 220],
+      "position": [
+        220,
+        0
+      ],
       "parameters": {
-        "jsCode": "const b=($input.first().json.body)||{};\nconst past=(b.past||'(없음)').toString();\nconst convo=(b.convo||'').toString();\nconst prompt='다음은 돌봄 도우미와 어르신의 통화 내용입니다. 다음 통화 때 참고할 \"어르신 메모\"를 한국어로 갱신해 주세요. 기존 메모와 이번 통화를 합쳐서, 어르신 호칭/성함, 건강상태와 통증, 기분, 가족/일상, 걱정거리, 약속한 것, 다음에 여쭤볼 것을 간결한 불릿으로 12줄 이내로 정리하세요. 메모만 출력하세요.\\n\\n[기존 메모]\\n'+past+'\\n\\n[이번 통화]\\n'+convo;\nreturn [{ json:{ prompt } }];"
+        "jsCode": "const b=($input.first().json.body)||{};\nconst past=(b.past||'(없음)').toString();\nconst convo=(b.convo||'').toString();\nconst device_id=(b.device_id||'').toString();\nconst prompt='다음은 돌봄 도우미와 어르신의 통화 내용입니다. 다음 통화 때 참고할 \"어르신 메모\"를 한국어로 갱신해 주세요. 기존 메모와 이번 통화를 합쳐서, 어르신 호칭/성함, 건강상태와 통증, 기분, 가족/일상, 걱정거리, 약속한 것, 다음에 여쭤볼 것을 간결한 불릿으로 12줄 이내로 정리하세요. 메모만 출력하세요.\\n\\n[기존 메모]\\n'+past+'\\n\\n[이번 통화]\\n'+convo;\nreturn [{ json:{ prompt, device_id } }];"
       }
     },
     {
@@ -72,7 +96,10 @@
       "name": "요약호출",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 220],
+      "position": [
+        440,
+        0
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.openai.com/v1/chat/completions",
@@ -83,25 +110,533 @@
         "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.3, messages: [ { role: 'user', content: $json.prompt } ] }) }}",
         "options": {}
       },
-      "credentials": { "openAiApi": { "id": "", "name": "OpenAI API" } }
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAI 2026-05"
+        }
+      }
+    },
+    {
+      "id": "sumextract",
+      "name": "요약추출",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const d=$input.first().json||{};\nconst memo=((d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'').trim();\nlet dev=''; try{ dev=String($('요약프롬프트').first().json.device_id||''); }catch(e){}\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst query = dev ? (\"INSERT INTO care_profiles (device_id, memo, visits, updated_at) VALUES ('\"+esc(dev)+\"', '\"+esc(memo)+\"', 1, now()) ON CONFLICT (device_id) DO UPDATE SET memo=EXCLUDED.memo, visits=care_profiles.visits+1, updated_at=now()\") : \"SELECT 1 WHERE false\";\nreturn [{ json:{ memo, query, device_id:dev } }];"
+      }
+    },
+    {
+      "id": "sumsave",
+      "name": "요약저장",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
     },
     {
       "id": "sumout",
       "name": "요약응답",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [660, 220],
+      "position": [
+        1100,
+        0
+      ],
       "parameters": {
-        "jsCode": "const d=$input.first().json||{};\nconst memo=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'';\nreturn [{ json:{ memo: memo.trim() } }];"
+        "jsCode": "let memo=''; try{ memo=String($('요약추출').first().json.memo||''); }catch(e){}\nreturn [{ json:{ memo } }];"
+      }
+    },
+    {
+      "id": "profget",
+      "name": "프로필조회요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        220
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "care-profile",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "care-profile"
+    },
+    {
+      "id": "getbuild",
+      "name": "조회빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        220
+      ],
+      "parameters": {
+        "jsCode": "const q=($input.first().json.query)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(q.device_id||'');\nconst query=\"SELECT device_id,name,region,voice,env,speed,memo,visits FROM care_profiles WHERE device_id='\"+id+\"'\";\nreturn [{ json:{ query } }];"
+      }
+    },
+    {
+      "id": "profsel",
+      "name": "프로필조회",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        220
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "getout",
+      "name": "조회응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        220
+      ],
+      "parameters": {
+        "jsCode": "const rows=$input.all();\nconst r=(rows.length&&rows[0].json)?rows[0].json:{};\nconst known=!!(r&&r.device_id);\nreturn [{ json:{ known, name:r.name||'', region:r.region||'', voice:r.voice||'', env:r.env||'', speed:r.speed||'', memo:r.memo||'', visits:r.visits||0 } }];"
+      }
+    },
+    {
+      "id": "profpost",
+      "name": "프로필저장요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        440
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "care-profile-save",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "care-profile-save"
+    },
+    {
+      "id": "savebuild",
+      "name": "저장빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        440
+      ],
+      "parameters": {
+        "jsCode": "const b=($input.first().json.body)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(b.device_id||'');\nlet query;\nif(!id){ query=\"SELECT 1 WHERE false\"; }\nelse { query=\"INSERT INTO care_profiles (device_id,name,region,voice,env,speed,updated_at) VALUES ('\"+id+\"','\"+esc(b.name)+\"','\"+esc(b.region)+\"','\"+esc(b.voice)+\"','\"+esc(b.env)+\"','\"+esc(b.speed)+\"',now()) ON CONFLICT (device_id) DO UPDATE SET name=EXCLUDED.name, region=EXCLUDED.region, voice=EXCLUDED.voice, env=EXCLUDED.env, speed=EXCLUDED.speed, updated_at=now()\"; }\nreturn [{ json:{ query } }];"
+      }
+    },
+    {
+      "id": "profins",
+      "name": "프로필저장",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        440
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "saveout",
+      "name": "저장응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        440
+      ],
+      "parameters": {
+        "jsCode": "return [{ json:{ ok:true } }];"
+      }
+    },
+    {
+      "id": "c47f26f1-bcd3-40f8-9267-34c09d80777a",
+      "name": "세션요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        660
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "care-session",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "32dcb6b2-498b-4db5-a03d-c5b5285bea5c"
+    },
+    {
+      "id": "c4f4177d-87ff-422f-8fe4-40db5fa8c4a5",
+      "name": "세션빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        660
+      ],
+      "parameters": {
+        "jsCode": "const b=($input.first().json.body)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst n=v=>{ const x=parseInt(v,10); return isNaN(x)?0:x; };\nconst id=esc(b.device_id||'');\nif(!id) return [{json:{query:\"SELECT 1 WHERE false\"}}];\nconst st=b.started_at?(\"'\"+esc(b.started_at)+\"'\"):'now()';\nconst en=b.ended_at?(\"'\"+esc(b.ended_at)+\"'\"):'now()';\nconst tr=esc(String(b.transcript||'').slice(0,8000));\nconst query=\"INSERT INTO care_sessions (device_id,started_at,ended_at,duration_sec,turns,input_tokens,output_tokens,total_tokens,transcript) VALUES ('\"+id+\"',\"+st+\",\"+en+\",\"+n(b.duration_sec)+\",\"+n(b.turns)+\",\"+n(b.input_tokens)+\",\"+n(b.output_tokens)+\",\"+n(b.total_tokens)+\",'\"+tr+\"')\";\nreturn [{json:{query}}];"
+      }
+    },
+    {
+      "id": "82872d62-4ce3-4a8d-8e7d-eb45116541ff",
+      "name": "세션저장",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        660
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "af643821-33d4-4742-8e66-403c8797805c",
+      "name": "세션응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        660
+      ],
+      "parameters": {
+        "jsCode": "return [{ json:{ ok:true } }];"
+      }
+    },
+    {
+      "id": "3919b5fe-d9fd-4d86-9e35-d26971b00a20",
+      "name": "핑요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        880
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "care-ping",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "b33a33db-df54-4b1d-883d-7bd9aeb0df58"
+    },
+    {
+      "id": "672ee50c-8f62-4cf9-a23c-3bbe7af8bda6",
+      "name": "핑빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        880
+      ],
+      "parameters": {
+        "jsCode": "const b=($input.first().json.body)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(b.device_id||'');\nconst query = id ? (\"INSERT INTO care_profiles (device_id,last_ping,updated_at) VALUES ('\"+id+\"',now(),now()) ON CONFLICT (device_id) DO UPDATE SET last_ping=now()\") : \"SELECT 1 WHERE false\";\nreturn [{json:{query}}];"
+      }
+    },
+    {
+      "id": "4067c94e-5f06-4446-af33-1492c6a4ba35",
+      "name": "핑저장",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        880
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "990b3fdb-003a-48fd-9c7b-f0271f47e46b",
+      "name": "핑응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        880
+      ],
+      "parameters": {
+        "jsCode": "return [{ json:{ ok:true } }];"
       }
     }
   ],
   "connections": {
-    "토큰요청": { "main": [[{ "node": "토큰발급", "type": "main", "index": 0 }]] },
-    "토큰발급": { "main": [[{ "node": "토큰응답", "type": "main", "index": 0 }]] },
-    "요약요청": { "main": [[{ "node": "요약프롬프트", "type": "main", "index": 0 }]] },
-    "요약프롬프트": { "main": [[{ "node": "요약호출", "type": "main", "index": 0 }]] },
-    "요약호출": { "main": [[{ "node": "요약응답", "type": "main", "index": 0 }]] }
+    "토큰요청": {
+      "main": [
+        [
+          {
+            "node": "토큰발급",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "토큰발급": {
+      "main": [
+        [
+          {
+            "node": "토큰응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "요약요청": {
+      "main": [
+        [
+          {
+            "node": "요약프롬프트",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "요약프롬프트": {
+      "main": [
+        [
+          {
+            "node": "요약호출",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "요약호출": {
+      "main": [
+        [
+          {
+            "node": "요약추출",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "요약추출": {
+      "main": [
+        [
+          {
+            "node": "요약저장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "요약저장": {
+      "main": [
+        [
+          {
+            "node": "요약응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "프로필조회요청": {
+      "main": [
+        [
+          {
+            "node": "조회빌드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "조회빌드": {
+      "main": [
+        [
+          {
+            "node": "프로필조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "프로필조회": {
+      "main": [
+        [
+          {
+            "node": "조회응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "프로필저장요청": {
+      "main": [
+        [
+          {
+            "node": "저장빌드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "저장빌드": {
+      "main": [
+        [
+          {
+            "node": "프로필저장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "프로필저장": {
+      "main": [
+        [
+          {
+            "node": "저장응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "세션요청": {
+      "main": [
+        [
+          {
+            "node": "세션빌드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "세션빌드": {
+      "main": [
+        [
+          {
+            "node": "세션저장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "세션저장": {
+      "main": [
+        [
+          {
+            "node": "세션응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "핑요청": {
+      "main": [
+        [
+          {
+            "node": "핑빌드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "핑빌드": {
+      "main": [
+        [
+          {
+            "node": "핑저장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "핑저장": {
+      "main": [
+        [
+          {
+            "node": "핑응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1"
+  }
 }

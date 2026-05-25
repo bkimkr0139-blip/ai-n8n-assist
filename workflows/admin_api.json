@@ -1,0 +1,141 @@
+{
+  "name": "admin_api",
+  "nodes": [
+    {
+      "id": "awh",
+      "name": "관리자요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "admin-data",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "admin-data"
+    },
+    {
+      "id": "auth",
+      "name": "인증",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const q=($input.first().json.query)||{};\nconst PASS='CHANGE_ME_ADMIN_PASS';\nconst ok=(String(q.pass||'')===PASS);\nconst deviceSQL=\"SELECT p.device_id,p.name,p.region,p.visits,p.memo,p.last_ping,(EXTRACT(EPOCH FROM (now()-p.last_ping))<45) AS online,COALESCE(s.cnt,0) AS sessions,COALESCE(s.dur,0) AS total_duration,COALESCE(s.tok,0) AS total_tokens,s.last_at FROM care_profiles p LEFT JOIN (SELECT device_id,count(*) cnt,sum(duration_sec) dur,sum(total_tokens) tok,max(started_at) last_at FROM care_sessions GROUP BY device_id) s ON s.device_id=p.device_id ORDER BY p.last_ping DESC NULLS LAST, p.updated_at DESC\";\nreturn [{json:{ ok, query: ok?deviceSQL:\"SELECT 1 WHERE false\" }}];"
+      }
+    },
+    {
+      "id": "devq",
+      "name": "디바이스조회",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "sesq",
+      "name": "세션조회",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT s.id,s.device_id,p.name,s.started_at,s.duration_sec,s.turns,s.total_tokens,s.transcript FROM care_sessions s LEFT JOIN care_profiles p ON p.device_id=s.device_id ORDER BY s.started_at DESC LIMIT 100"
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "aout",
+      "name": "관리자응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "jsCode": "let ok=false; try{ ok=$('인증').first().json.ok===true; }catch(e){}\nif(!ok) return [{json:{ error:'unauthorized' }}];\nlet devices=[],sessions=[];\ntry{ devices=$('디바이스조회').all().map(r=>r.json).filter(x=>x&&x.device_id); }catch(e){}\ntry{ sessions=$('세션조회').all().map(r=>r.json).filter(x=>x&&x.id); }catch(e){}\nreturn [{json:{ devices, sessions, now:new Date().toISOString() }}];"
+      }
+    }
+  ],
+  "connections": {
+    "관리자요청": {
+      "main": [
+        [
+          {
+            "node": "인증",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "인증": {
+      "main": [
+        [
+          {
+            "node": "디바이스조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "디바이스조회": {
+      "main": [
+        [
+          {
+            "node": "세션조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "세션조회": {
+      "main": [
+        [
+          {
+            "node": "관리자응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

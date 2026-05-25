@@ -1471,6 +1471,60 @@
         }
       },
       "webhookId": "0877e4ad-5cc6-4e17-aae8-20ab11b602ba"
+    },
+    {
+      "id": "70d04428-72c1-47c5-b52c-acffc37a93a0",
+      "name": "Monitor?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1180,
+        -620
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            { "id": "mo1", "leftValue": "={{ $json.message.text }}", "rightValue": "모니터링", "operator": { "type": "string", "operation": "contains" } },
+            { "id": "mo2", "leftValue": "={{ $json.message.text }}", "rightValue": "대시보드", "operator": { "type": "string", "operation": "contains" } },
+            { "id": "mo3", "leftValue": "={{ $json.message.text }}", "rightValue": "접속현황", "operator": { "type": "string", "operation": "contains" } },
+            { "id": "mo4", "leftValue": "={{ $json.message.text }}", "rightValue": "접속 현황", "operator": { "type": "string", "operation": "contains" } }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "69f368ae-e4a5-4ee2-b2f1-72f5123ad79f",
+      "name": "Reply: Monitor Link",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -840,
+        -680
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "🩺 돌봄 통합 관리자 대시보드입니다. 모바일·PC 어디서나 접속해 단말기별 접속상태·통화기록·통화시간·토큰사용량을 확인하세요. (관리자 패스코드 필요)\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/admin.html",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram Bot"
+        }
+      },
+      "webhookId": "a1b2c3d4-0000-4000-8000-monitorlink01"
     }
   ],
   "connections": {
@@ -1754,6 +1808,24 @@
         [
           {
             "node": "Reply: Admin Link",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Monitor?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monitor?": {
+      "main": [
+        [
+          {
+            "node": "Reply: Monitor Link",
             "type": "main",
             "index": 0
           }
