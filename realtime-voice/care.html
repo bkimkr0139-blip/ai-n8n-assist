@@ -197,6 +197,14 @@
     function newsTool(){ return { type:'function', name:'get_news',
       description:'오늘의 주요 뉴스 헤드라인을 가져온다. topic을 주면 그 주제 뉴스, 없으면 전체 헤드라인. 호출 직전 "네, 제가 한번 찾아볼게요"라고 짧게 말할 것. 결과가 오면 헤드라인 2~4개만 골라 자연스럽게 요약해 읽어주고, 언론사명·기호·따옴표는 생략하라.',
       parameters:{ type:'object', properties:{ topic:{ type:'string', description:'뉴스 주제(선택). 예: 건강, 날씨, 정치. 없으면 전체.' } }, required:[] } }; }
+    // 현재 시각(이 기기/시스템의 실제 시각, 한국 시간)
+    function getTimeNow(){
+      try{ return new Intl.DateTimeFormat('ko-KR',{ timeZone:'Asia/Seoul', dateStyle:'full', timeStyle:'short' }).format(new Date()); }
+      catch(e){ return new Date().toLocaleString('ko-KR'); }
+    }
+    function timeTool(){ return { type:'function', name:'get_time',
+      description:'지금 현재 날짜·시간·요일을 알려준다. 어르신이 시간/날짜/요일/며칠/무슨 요일인지, 또는 약 드실 시간인지 물으면 반드시 이 도구를 호출해 그 결과(실제 현재 시각)로 답하라. 시간을 추측하지 말 것.',
+      parameters:{ type:'object', properties:{}, required:[] } }; }
 
     const END_WORDS = ['끊','그만','이만','들어가','안녕히','수고했','수고하','잘 있','다음에 봐'];
     function isEndIntent(t){ return END_WORDS.some(w => t.indexOf(w) >= 0); }
@@ -205,6 +213,7 @@
       pastMem = loadMem();
       const region = (els.region.value||'서울').trim();
       let ins = PERSONA;
+      ins += '\n\n[현재 시각] '+getTimeNow()+' — 이 시스템의 실제 현재 시각입니다. 어르신이 시간·날짜·요일을 물으면 get_time 도구로 확인해 답하고(추측 금지), 복약 등 시간 안내도 반드시 이 현재 시각을 기준으로 하세요.';
       ins += '\n\n[어르신 거주지역] '+region+'. 날씨를 여쭤보시면 get_weather 도구를 쓰세요. 지역을 따로 안 말씀하시면 거주지역('+region+')으로, 다른 지역을 말씀하시면 그 지역으로 조회하고, 결과를 다정하게 대화에 녹여 알려드리세요(예보 수치를 그대로 읽기보다 자연스럽게).';
       const cfg = (localStorage.getItem(CFG_KEY) || '').trim();
       if (cfg) ins += '\n\n[관리자 맞춤 설정 — 아래 지침을 최우선으로 따르세요]\n' + cfg;
@@ -213,7 +222,7 @@
       if (PURPOSE === 'med') {
         ins += '\n[오늘 용건] 복약 안내 전화입니다. 약 드실 시간이 되어 연락드렸다고 따뜻하게 말하고, 약을 드셨는지 여쭤본 뒤 아직이면 지금 천천히 드시도록 다정하게 안내·확인하세요. 물도 한 잔 곁들이시도록 권하세요. 그 뒤 짧게 안부도 여쭤보세요.';
         let meds=''; try{ const ms=JSON.parse(localStorage.getItem('med_schedule')||'[]'); if(ms.length) meds=ms.map(m=>'- '+(m.time||'')+' '+(m.when||'')+': '+(m.med||'')).join('\n'); }catch(e){}
-        if(meds) ins += '\n[복약 일정]\n'+meds+'\n지금 시간대에 해당하는 약을 콕 집어 안내하세요(예: 아침 식후 치매약). 시간이 안 맞는 약까지 굳이 다 읽지는 마세요.';
+        if(meds) ins += '\n[복약 일정]\n'+meds+'\n위 [현재 시각]과 복약 일정을 비교해, 지금 시각에 해당하는 약을 콕 집어 안내하세요(예: 아침 식후 치매약). 헷갈리면 get_time으로 현재 시각을 확인하세요. 시간이 안 맞는 약까지 굳이 다 읽지는 마세요.';
       }
       else ins += '\n[오늘 용건] 안부 확인입니다. 식사·수면·기분·건강을 자연스럽게 여쭤보세요.';
       if (pastMem) ins += '\n\n[이 어르신과의 이전 통화 메모]\n' + pastMem + '\n인사와 용건 뒤, 위 메모에서 한 가지를 콕 집어 안부를 이어가세요(메모를 그대로 읽지 말고 대화에 녹이세요).';
@@ -221,7 +230,7 @@
     }
     function sessionConfig(){
       return { type:'session.update', session:{ type:'realtime', instructions: buildInstructions(),
-        tools:[ weatherTool(), newsTool() ], tool_choice:'auto',
+        tools:[ weatherTool(), newsTool(), timeTool() ], tool_choice:'auto',
         audio:{ input:{ transcription:{ model:'whisper-1' }, noise_reduction:{ type:(ENV[els.env.value]||ENV.normal).nr }, turn_detection:{ type:'server_vad', threshold:(ENV[els.env.value]||ENV.normal).th, prefix_padding_ms:200, silence_duration_ms:500 } },
                 output:{ voice: els.voice.value, speed: parseFloat(els.speed.value) } } } };
     }
@@ -231,6 +240,7 @@
       let out='';
       if(item.name==='get_weather'){ setStatus('🌤️ 날씨 확인 중...'); out = await getWeather(args.location); add('sys','🌤️ '+out); }
       else if(item.name==='get_news'){ setStatus('📰 뉴스 확인 중...'); out = await getNews(args.topic); add('sys','📰 '+out); }
+      else if(item.name==='get_time'){ out = getTimeNow(); add('sys','🕐 '+out); }
       else out = '지원하지 않는 기능입니다.';
       try{ dc.send(JSON.stringify({ type:'conversation.item.create', item:{ type:'function_call_output', call_id:item.call_id, output: out } })); dc.send(JSON.stringify({ type:'response.create' })); }catch{}
     }
