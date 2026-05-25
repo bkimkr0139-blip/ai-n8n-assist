@@ -115,17 +115,20 @@
     async function loadProfile(){
       try{
         const r=await fetch(PROFILE_GET_URL+'?device_id='+encodeURIComponent(DEVICE_ID),{ headers:{ 'ngrok-skip-browser-warning':'true' } });
-        if(!r.ok) return; const p=await r.json();
-        if(p&&p.known){
-          if(p.name) els.worker.value=p.name;
-          if(p.region) els.region.value=p.region;
-          if(p.voice) els.voice.value=p.voice;
-          if(p.env) els.env.value=p.env;
-          if(p.speed) els.speed.value=p.speed;
-          if(p.memo){ pastMem=p.memo; saveMem(p.memo); }
-          els.memstate.textContent='📓 이 단말기로 '+(p.visits||0)+'번째 · 이전 기억을 불러왔어요 (같은 분으로 이어갑니다)';
+        if(r.ok){ const p=await r.json();
+          if(p&&p.known){
+            if(p.name) els.worker.value=p.name;
+            if(p.region) els.region.value=p.region;
+            if(p.voice) els.voice.value=p.voice;
+            if(p.env) els.env.value=p.env;
+            if(p.speed) els.speed.value=p.speed;
+            if(p.memo){ pastMem=p.memo; saveMem(p.memo); }
+            els.memstate.textContent='📓 이 단말기로 '+(p.visits||0)+'번째 · 이전 기억을 불러왔어요 (같은 분으로 이어갑니다)';
+          }
         }
       }catch(e){}
+      // 페이지를 연 것만으로도 단말기를 서버에 등록 → 관리자 대시보드에 오프라인 상태로 표시
+      saveProfile();
     }
 
     let pc=null, dc=null, micStream=null, aiBuf='', turns=[], pastMem='', endRequested=false, ending=false;
