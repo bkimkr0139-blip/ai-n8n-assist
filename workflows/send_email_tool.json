@@ -34,13 +34,13 @@
           "appendAttribution": false
         }
       },
+      "webhookId": "8ead830c-5767-40f9-b900-5a082f1cbf4e",
       "credentials": {
         "smtp": {
           "id": "",
           "name": "SMTP account 2"
         }
-      },
-      "webhookId": "8ead830c-5767-40f9-b900-5a082f1cbf4e"
+      }
     },
     {
       "id": "ret",

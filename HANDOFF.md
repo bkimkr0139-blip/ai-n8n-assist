@@ -1,99 +1,80 @@
-# HANDOFF — telegram_bot AI 비서 (이어서 작업용)
+# HANDOFF — 돌봄 AI 비서 (이어서 작업용)
 
 > 새 세션에서 이 프로젝트를 이어받는 사람(또는 AI)을 위한 인계 문서.
+> 인스턴스 고유값(자격증명 ID·ngrok URL·관리자 패스코드·봇 토큰)은 보안상 이 문서에 넣지 않는다 — 운영 중인 n8n/메모리에서 확인.
 
 ## 한 줄 요약
 
-n8n으로 만든 **텔레그램 개인 비서 봇**. **대화(메모리) + 자연어 이메일 발송 + 문서 기반 RAG 질의응답**이 모두 작동한다.
+n8n + OpenAI로 만든 **텔레그램 개인비서 → 어르신 돌봄 AI 시스템**. 텔레그램 봇(대화·이메일·RAG·날씨·사진·복약알림·음성)과, GitHub Pages로 호스팅하는 **실시간 음성통화 웹앱(돌봄 통화/관리자 설정/복약 일정/모니터링 대시보드)**로 구성. 키 없이 외부 사용 가능(서버가 단기토큰 발급), 단말기 기준 개인화, 관리자 모니터링까지 구현됨.
 
-## 실행 방법
+## 구성요소 한눈에
 
-두 가지 경로가 있다. 임포트/자격증명 절차는 [README.md](README.md)에 단계별로 있다.
+**n8n 워크플로우** (`workflows/`): 모두 활성. JSON은 자격증명 id 빈값·토큰/패스코드 플레이스홀더로 sanitize됨.
+| 파일 | 역할 |
+|---|---|
+| `telegram_bot.json` | 메인 봇(라우팅 56노드). 키워드 분기로 사진/문서/복약설정/돌봄설정/모니터링/돌봄통화/음성대화/음성/날씨/이메일/RAG 처리 |
+| `send_email_tool.json` | SMTP 이메일 발송 서브(Execute Workflow + Webhook) |
+| `med_scheduler.json` | 복약알림. /med-config(웹훅)→Postgres `med_schedules` 저장 + 5분 스케줄로 읽어 텔레그램 알림 |
+| `news_api.json` | /news(웹훅, CORS)→Google News RSS(한국) 서버fetch→헤드라인 top5 JSON |
+| `care_api.json` | care.html 클라이언트 API: /realtime-token(OpenAI 단기토큰), /care-summary(기억요약+device_id memo저장), /care-profile(GET)·/care-profile-save(POST), /care-session(통화로그), /care-ping(온라인핑) |
+| `admin_api.json` | 관리자 대시보드 API: /admin-data?pass=(패스코드 검증→단말기 집계+통화로그 JSON) |
 
-### A. Docker Compose (이식성, 권장)
-`docker-compose.yml` 하나로 **n8n(2.20.11) + pgvector** 동시 기동.
-```bash
-cp .env.example .env   # N8N_ENCRYPTION_KEY, WEBHOOK_URL 등 설정
-docker compose up -d
-```
-- RAG 저장소: postgres 서비스의 `n8n_rag` DB(`vector` 확장은 `db/init/01-vector.sql`로 자동). n8n의 Postgres 자격증명 host는 컨테이너명 `postgres`.
+**웹앱** (`realtime-voice/`, GitHub Pages: `https://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/`):
+| 파일 | 역할 |
+|---|---|
+| `index.html` | 일반 실시간 음성대화(OpenAI Realtime, `gpt-realtime`). ※아직 클라이언트 키 입력 방식 |
+| `care.html` | **어르신 돌봄 통화**. 키 없이 서버 단기토큰으로 접속, 여성음성·존댓말 페르소나, 날씨/뉴스 function tool, 세션간 기억, **단말기 기준 개인화**, 통화 로깅 |
+| `care-admin.html` | 돌봄 AI 말투·추임새·안내 음성 설정(→localStorage `care_config`, care.html이 주입). ※아직 키 입력 방식 |
+| `med.html` | 복약 일정 관리 UI(폼+자연어). localStorage가 원본, n8n /med-config로 동기화→알림 |
+| `admin.html` | **통합 관리자 모니터링 대시보드**(모바일·PC 반응형). 패스코드 로그인→단말기별 접속상태/횟수/통화시간/토큰 + 통화기록 상세 |
 
-### B. 로컬 npx (원개발 환경)
-- **n8n 2.20.11** self-hosted, npx 실행. 빠른 재시작:
-  `& "C:\Users\User\AppData\Local\npm-cache\_npx\<hash>\node_modules\.bin\n8n.cmd" start` (install 우회)
-  - ⚠️ npx 캐시본이 여러 개일 수 있고 일부는 설치 손상(`breaking-changes` 모듈 누락 등). 온전한 2.20.11 캐시본을 골라야 함.
-- RAG 저장소: 별도 Docker `pgvector/pgvector:pg16`(5432)에 `n8n_rag` DB + `CREATE EXTENSION vector`. n8n은 호스트에서 돌므로 host `localhost`.
+**Postgres 테이블** (`db/init/01-vector.sql`, DB `n8n_rag`):
+- `telegram_docs` — RAG 벡터(PGVector 자동생성)
+- `med_schedules` — 복약 일정(chat_id PK)
+- `care_profiles` — 단말기별 어르신 프로필/기억(device_id PK: name/region/voice/env/speed/memo/visits/last_ping)
+- `care_sessions` — 통화 접속 로그(device_id/started·ended/duration_sec/turns/토큰/transcript)
 
-### 공통 — Telegram webhook (HTTPS 필수)
-- Telegram은 HTTPS만 허용 → **ngrok** 터널 사용. `WEBHOOK_URL`에 ngrok HTTPS URL 넣고 n8n 기동.
-- **ngrok URL은 재시작 시 바뀜** → 바뀌면 `WEBHOOK_URL` 갱신 + n8n 재기동 + `telegram_bot` 비활성화→활성화(토글)로 webhook 재등록.
-- ngrok 대시보드 `http://127.0.0.1:4040`, n8n REST `http://localhost:5678`.
+## 실행/복구 방법
 
-## ⚠️ 핵심 제약 — AI Agent tool calling 불가
+### 로컬 npx (원개발 환경, 현재 라이브)
+- **n8n 2.20.11** self-hosted, npx 실행. 온전한 2.20.11 캐시본 사용(일부 캐시본은 `breaking-changes` 모듈 누락 등 손상).
+- RAG/데이터 DB: Docker `pgvector/pgvector:pg16`(컨테이너 `aep-dt-postgres-1`, user/db는 운영값), DB `n8n_rag`에 `vector` 확장 + 위 테이블들. n8n은 호스트라 Postgres host `localhost`(자격증명에 설정).
+- **Telegram webhook은 HTTPS 필수 → ngrok 터널**. `WEBHOOK_URL`에 ngrok HTTPS 넣고 기동. ngrok 대시보드 `http://127.0.0.1:4040`, n8n REST `http://localhost:5678`.
+- **ngrok URL은 재시작 시 바뀜.** 바뀌면: ① `WEBHOOK_URL` 갱신+n8n 재기동+`telegram_bot` 토글로 webhook 재등록, ② **웹앱의 하드코딩된 n8n URL도 갱신** — `care.html`의 `N8N_BASE`, `admin.html`의 `N8N_BASE`, `med.html`의 동기화 URL(전부 GitHub Pages라 push 필요).
 
-n8n 2.20.11 + OpenAI Chat Model에서 **AI Agent의 tool 연결이 전부 실패**한다:
-```
-Invalid schema for function '...': schema must be a JSON Schema of 'type: "object"', got 'type: "None"'.
-```
-- 전부 실패: `emailSendTool`, `toolVectorStore`, `toolWorkflow`, `toolHttpRequest`, vectorStore retrieve-as-tool. 모델/typeVersion 무관.
-- 원인: 2.20.11 langchain이 tool input schema를 OpenAI function 변환 시 `parameters`를 None으로 보냄.
+### Docker Compose (이식성)
+`docker compose up -d`로 n8n + pgvector 동시 기동. `.env`에 `N8N_ENCRYPTION_KEY`, `WEBHOOK_URL`, `TELEGRAM_BOT_TOKEN` 등. 자격증명은 인스턴스마다 UI에서 재생성. 상세는 [README.md](README.md).
 
-### ✅ 작동하는 우회 패턴
-tool을 쓰지 말 것:
-1. **AI Agent는 tool 없이** (model + memory만), systemMessage로 **JSON만 출력** 강제.
-2. **Code 노드**로 JSON 파싱(실패 시 chat fallback).
-3. **IF 노드**로 action 분기.
-4. 실제 기능은 **Execute Sub-workflow 노드**(일반 노드)로 호출.
+### 자격증명 (인스턴스마다 재생성, JSON엔 id 빈값)
+OpenAI(Chat+Embeddings+Realtime+TTS+Whisper+Vision 공용), SMTP(Gmail 앱비번, fromEmail 본인), Telegram(BotFather 토큰), Postgres(host/db/user 운영값).
 
-## 현재 워크플로우
+## ⚠️ 핵심 제약 — AI Agent tool calling 불가 (우회 패턴)
+n8n 2.20.11 + OpenAI에서 **AI Agent의 tool 연결이 schema 버그로 전부 실패**(`parameters`를 None으로 보냄). 그래서 봇은 tool 없이:
+1. AI Agent는 model+memory만, systemMessage로 **JSON만 출력** 강제.
+2. **Code**로 JSON 파싱(실패 시 chat fallback) → **IF**로 action 분기 → 실제 기능은 **Execute Sub-workflow/일반 노드**.
+(주의: care.html의 OpenAI **Realtime API는 function calling이 정상 작동** — 날씨/뉴스 tool은 거기서 동작. 위 버그는 n8n langchain AI Agent 한정.)
 
-### telegram_bot (메인) — `workflows/telegram_bot.json` (26 노드)
-```
-Telegram Trigger → Document Attached?(IF)
-  ├─ (문서첨부) → Download File → Insert to RAG(PGVector insert) → Reply: Indexed
-  └─ (else)     → Voice?(IF)
-        ├─ (음성)   → Download Voice → Transcribe Voice(Whisper) → Prepare Input
-        └─ (텍스트) → Prepare Input
-                          → Search RAG(PGVector load, topK5) → Build Context(Code)
-                          → AI Assistant(JSON출력, 메모리) → Parse Response(Code) → Is Email?(IF)
-                              ├ email → Send Email Sub(Execute Workflow) → Reply: Email
-                              └ chat  → Reply Voice?(IF)
-                                          ├ (음성입력) → TTS → Tag Audio → Send Voice  (음성 노트 회신)
-                                          └ (텍스트)   → Reply: Chat                    (텍스트 회신)
-```
-- AI Assistant: OpenAI Chat Model(gpt-4o-mini) + Conversation Memory(채팅ID별 10턴). tool 없음.
-- `Prepare Input`(Code): 음성 전사(Whisper 출력 `.text`)와 텍스트(`message.text`)를 `{query, isVoice, chatId}`로 정규화해 두 입력 경로를 합류시킴. **주의: Code 노드는 "Run Once for All Items" 모드라 `$json` 못 씀 → `$input.first().json` 사용.**
-- RAG 검색: `Embeddings (Query)`→`Search RAG`(ai_embedding). `Build Context`가 청크+`Prepare Input`의 query/isVoice/chatId를 모아 `{userMessage, context, chatId, isVoice}` 출력 → AI Assistant `text`=`{{ $json.userMessage }}`, systemMessage `[참고 문서]`=`{{ $json.context }}`(systemMessage는 `=`로 시작해야 평가됨!).
-- `Search RAG`: `alwaysOutputData:true` + `onError:continueRegularOutput` → 검색 0건/테이블 미존재여도 안 멈춤.
-- 음성 입력: `Transcribe Voice` = `@n8n/n8n-nodes-langchain.openAi`(v2.3, audio/transcribe). 바이너리 `data`로 연결.
-- 음성 출력: n8n Telegram 노드에 `sendVoice`가 없어 **HTTP Request로 직접 호출**. `TTS`=HTTP→OpenAI `/v1/audio/speech`(tts-1, **response_format opus**; OpenAI 사전정의 자격증명) → `Tag Audio`(Code, 바이너리 `data`의 fileName=`voice.ogg`/mimeType=`audio/ogg` 지정 — sendVoice가 OGG/Opus 요구) → `Send Voice`=HTTP→`https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendVoice`(multipart: chat_id + voice 바이너리). **봇 토큰은 워크플로우에 하드코딩 금지 → `TELEGRAM_BOT_TOKEN` 환경변수**(docker .env). 단, 현재 로컬 라이브 인스턴스는 env 미설정이라 URL에 토큰 하드코딩 상태일 수 있음(repo export 시 gen 스크립트가 자동으로 env 치환). openAi generate 노드는 opus 출력 옵션이 없어 HTTP 사용.
-
-### send_email_tool (서브) — `workflows/send_email_tool.json` (4 노드)
-```
-Execute Workflow Trigger ┐
-Webhook(POST /send_email_tool) ┘→ Send Email(SMTP, appendAttribution:false) → Return(결과메시지)
-```
-- input: to / subject / body. **active 유지 필수**(webhook trigger).
-
-## RAG 설계 메모
-- **인메모리(vectorStoreInMemory) 금지**: 재시작 시 색인 소실 + 워크플로우별 격리. → **PGVector(영구)** 사용.
-- 테이블 `telegram_docs`는 첫 인덱싱 시 PGVector 노드가 자동 생성.
-- 임베딩 모델은 insert/query **동일**해야 함(text-embedding-3-small, 1536). 다르면 검색 안 됨.
+## 보안 (필수 준수)
+- **OpenAI 키는 어디에도 하드코딩 금지** — n8n 자격증명에만. 웹앱(care.html)은 서버(`/realtime-token`)가 발급한 **단기토큰(ek_, 60초)**으로만 접속.
+- **봇 토큰**은 repo export 시 `{{ $env.TELEGRAM_BOT_TOKEN }}`로 치환(라이브 Send Voice 노드엔 하드코딩될 수 있음).
+- **관리자 패스코드**: `admin_api`의 `인증` 코드노드에 있음(repo엔 `CHANGE_ME_ADMIN_PASS` 플레이스홀더). 운영값은 변경 권장.
+- **커밋 전 누출 스캔 필수**: 봇토큰/sk-proj 키/자격증명 id/패스코드/ngrok 도메인이 repo에 없는지 grep 확인.
+- ⚠️ **비용**: /realtime-token·/admin-data 등 공개 웹훅이라 URL 아는 사람이 호출 가능 → OpenAI 월 한도 설정 + 미사용 시 워크플로우 비활성화 권장.
 
 ## 💡 디버깅 교훈 (꼭 기억)
+1. **n8n 표현식은 필드 값이 `=`로 시작해야 평가**된다(예: AI Agent systemMessage의 `{{ $json.context }}`).
+2. AI가 컨텍스트 무시하면 LLM이 실제 받은 메시지부터 확인: `GET /api/v1/executions/{id}?includeData=true`.
+3. **staticData를 트리거 간 공유 저장소로 쓰지 말 것**(인메모리 캐시·불안정) → Postgres 사용(복약알림 ??? 한글깨짐도 이 때문).
+4. **PowerShell `Invoke-WebRequest`로 한글 POST 금지**(인코딩 깨짐). docker exec psql로 한글 넣을 땐 `-c` 인라인 말고 **UTF-8 .sql 파일 + `psql -f`/stdin**.
+5. **브라우저 CORS는 curl로 검증되지 않는다** — OPTIONS preflight(+`Access-Control-Request-Headers`)로 재현해야 진짜 확인. ngrok-free는 fetch에 `ngrok-skip-browser-warning: true` 헤더 필요.
+6. **CSS `display:flex` 등은 `hidden` 속성을 덮어쓴다** → 모달/토글엔 `[hidden]{display:none!important;}` 전역 규칙 필요(admin.html 상세팝업 안 닫히던 버그).
+7. Postgres COUNT/SUM은 **문자열로 반환** → 프론트에서 parseInt.
+8. n8n UI에서 워크플로우 탭을 열어두면 MCP 편집이 덮어써질 수 있음 → **MCP 편집 중 UI 탭 닫기**.
+9. webhook 직접 트리거는 Telegram secret-token 검증으로 403 → 실테스트는 텔레그램/브라우저에서.
 
-1. **n8n 표현식은 필드 값이 `=`로 시작해야 평가된다.** AI Agent `systemMessage`에 `{{ $json.context }}`를 넣었는데 `=` 접두사가 없어 **literal 문자열로** LLM에 전달됐고, 모델은 늘 빈 [참고 문서]를 받아 "문서 없다"고 거부했다. → systemMessage를 `=`로 시작하게 고쳐 해결. (`text`는 `=`가 있어서 정상이었음.)
-2. **AI Agent가 컨텍스트를 무시하면, LLM이 실제 받은 메시지를 먼저 확인**하라. 실행 원본의
-   `runData["OpenAI Chat Model"][0].inputOverride.ai_languageModel[0][0].json.messages`
-   에 최종 system/human 프롬프트가 들어 있다. REST: `GET /api/v1/executions/{id}?includeData=true`.
-3. 위 1번을 메모리 오염으로 오진했었다(거부가 메모리에 쌓인 **증상**일 뿐). 메모리를 꺼도 거부가 지속되면 메모리가 원인이 아니다.
-4. webhook 직접 트리거는 Telegram secret-token 검증으로 403 → 자체 테스트 불가, 실테스트는 텔레그램에서.
-
-## 자격증명 (인스턴스마다 재생성)
-- OpenAI(Chat+Embeddings 공용), SMTP(Gmail, fromEmail 본인 주소로), Telegram(BotFather 토큰), Postgres(pgvector RAG; docker는 host `postgres`/db `n8n_rag`).
-- 워크플로우 JSON의 `credentials.id`는 비어 있음 → 임포트 후 UI에서 연결.
-
-## 다음 후보
-- RAG 품질 튜닝(청크 크기/overlap/topK, score 임계값으로 무관 문서 컷).
-- 문서 외 업무 도구 추가(같은 우회 패턴).
-- 작은 모델 한계 시 gpt-4o 등으로 상향.
+## 알려진 한계 / 다음 후보
+- **진짜 음성 생체인식(화자 분리/학습) 미지원** — 단말기 식별 + 서버 기억 + 소음/VAD 튜닝으로 근사.
+- **자동 전화발신/SMS/웹푸시 미지원** — 텔레그램 알림+탭하면 통화 링크로 대체. 진짜 발신은 Twilio 등 전화망 연동 필요(미착수).
+- `index.html`·`care-admin.html`은 아직 클라이언트 키 입력 방식 → 필요시 care.html처럼 서버 단기토큰으로 전환 가능.
+- RAG 품질 튜닝(청크/overlap/topK/score 임계), 작은 모델 한계 시 상향.
+- 데모 데이터: `care_profiles`/`care_sessions`에 `device_id='demo-sample-001'` 예시 1건 존재(삭제 가능).

@@ -2,12 +2,6 @@
   "name": "telegram_bot",
   "nodes": [
     {
-      "parameters": {
-        "updates": [
-          "message"
-        ],
-        "additionalFields": {}
-      },
       "id": "6ba2e648-c2bc-4770-8445-b6e1dc1fe2a6",
       "name": "Telegram Trigger",
       "type": "n8n-nodes-base.telegramTrigger",
@@ -16,6 +10,12 @@
         -1264,
         240
       ],
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
       "webhookId": "76af2d28-63bd-4667-b830-e393fcc4c0ad",
       "credentials": {
         "telegramApi": {
@@ -25,6 +25,14 @@
       }
     },
     {
+      "id": "bbb848e0-8e1e-43c9-a721-030a6e0d2c96",
+      "name": "Document Attached?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1664,
+        -1392
+      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -48,22 +56,9 @@
           "combinator": "and"
         },
         "options": {}
-      },
-      "id": "bbb848e0-8e1e-43c9-a721-030a6e0d2c96",
-      "name": "Document Attached?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -1664,
-        -1392
-      ]
+      }
     },
     {
-      "parameters": {
-        "resource": "file",
-        "fileId": "={{ $json.message.document.file_id }}",
-        "additionalFields": {}
-      },
       "id": "ae15960d-9f68-4f5c-b163-1e5a241fdfea",
       "name": "Download Telegram File",
       "type": "n8n-nodes-base.telegram",
@@ -72,6 +67,11 @@
         -1136,
         -1408
       ],
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.document.file_id }}",
+        "additionalFields": {}
+      },
       "webhookId": "ccf7150e-b89f-4a28-9403-440ca94afdb3",
       "credentials": {
         "telegramApi": {
@@ -81,11 +81,6 @@
       }
     },
     {
-      "parameters": {
-        "mode": "insert",
-        "tableName": "telegram_docs",
-        "options": {}
-      },
       "id": "a4c7008c-bc45-43ce-987b-4e46d6940711",
       "name": "Insert to RAG",
       "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
@@ -94,6 +89,11 @@
         -736,
         -1392
       ],
+      "parameters": {
+        "mode": "insert",
+        "tableName": "telegram_docs",
+        "options": {}
+      },
       "credentials": {
         "postgres": {
           "id": "",
@@ -102,9 +102,6 @@
       }
     },
     {
-      "parameters": {
-        "options": {}
-      },
       "id": "bab25ccc-bf78-4dd4-9127-8d01f4bf696f",
       "name": "Embeddings (Insert)",
       "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
@@ -113,6 +110,9 @@
         544,
         -944
       ],
+      "parameters": {
+        "options": {}
+      },
       "credentials": {
         "openAiApi": {
           "id": "",
@@ -121,11 +121,6 @@
       }
     },
     {
-      "parameters": {
-        "dataType": "binary",
-        "textSplittingMode": "custom",
-        "options": {}
-      },
       "id": "05e09560-59e4-427a-a71e-aa742253595a",
       "name": "Default Data Loader",
       "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
@@ -133,13 +128,14 @@
       "position": [
         176,
         -1376
-      ]
+      ],
+      "parameters": {
+        "dataType": "binary",
+        "textSplittingMode": "custom",
+        "options": {}
+      }
     },
     {
-      "parameters": {
-        "chunkOverlap": 200,
-        "options": {}
-      },
       "id": "79246f0b-3e24-4bfc-8e1d-5c972f2c613f",
       "name": "Recursive Splitter",
       "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
@@ -147,16 +143,13 @@
       "position": [
         608,
         -1216
-      ]
+      ],
+      "parameters": {
+        "chunkOverlap": 200,
+        "options": {}
+      }
     },
     {
-      "parameters": {
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "📄 문서가 RAG에 등록되었습니다.",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
       "id": "81046e9e-9ff6-4d0e-9897-26aeb378f2fd",
       "name": "Reply: Indexed",
       "type": "n8n-nodes-base.telegram",
@@ -165,6 +158,13 @@
         -352,
         -1536
       ],
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "📄 문서가 RAG에 등록되었습니다.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
       "webhookId": "8bc69b91-cd9f-48f0-84b1-0c8c7f8590fe",
       "credentials": {
         "telegramApi": {
@@ -174,13 +174,6 @@
       }
     },
     {
-      "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.userMessage }}",
-        "options": {
-          "systemMessage": "=당신은 BC Kim의 개인 비서입니다.\n\n아래 [참고 문서]에는 사용자가 시스템에 등록·보유한 문서에서 이번 질문과 관련해 검색된 실제 내용이 들어 있습니다. 이것은 사용자가 이미 등록한 문서 그 자체입니다.\n- [참고 문서]에 내용이 있으면, 반드시 그 내용을 근거로 질문에 직접·구체적으로 답하세요. 절대 \"문서를 볼 수 없다\", \"등록된 문서 내용을 확인할 수 없다\"고 답하지 마세요.\n- 어떤 문서가 등록됐는지·무슨 내용인지 묻는 경우에도, [참고 문서]를 보고 어떤 문서가 있는지와 그 요지를 설명하세요. 질문의 문서 이름이 조금 달라도 [참고 문서]와 같은 문서로 판단되면 그것을 근거로 답하세요.\n- [참고 문서]가 정확히 \"(관련 등록 문서 없음)\"일 때만 관련 문서를 찾지 못했다고 안내하세요.\n\n[참고 문서]\n{{ $json.context }}\n\n반드시 아래 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트는 절대 출력하지 마세요.\n\n이메일 발송 요청이고 받는사람/제목/본문이 모두 명확하면:\n{\"action\":\"email\",\"to\":\"받는주소\",\"subject\":\"제목\",\"body\":\"본문\"}\n\n날씨 질문이고 지역이 분명하면(한국 지명은 영문으로 변환):\n{\"action\":\"weather\",\"location\":\"Seoul\"}\n날씨 질문인데 지역이 불분명하면 action을 chat으로 하고 reply에 \"어느 지역 날씨를 알려드릴까요?\"라고 되물으세요.\n\n그 외 모든 경우(일반 대화, 문서 기반 질의응답, 이메일 정보 부족 등):\n{\"action\":\"chat\",\"reply\":\"사용자에게 보낼 한국어 답변\"}\n\n이메일 정보가 부족하면 action을 chat으로 하고 reply에 무엇이 필요한지 물어보세요.\n\n{{ $json.isVoice ? '사용자가 방금 음성 메시지로 말했고, 그 음성은 이미 정확한 텍스트로 변환되어 위 질문으로 전달되었습니다. 당신의 reply도 자동으로 음성으로 변환되어 사용자에게 들립니다. 그러므로 음성을 들을 수 없다거나 음성 대화를 지원하지 않는다거나 텍스트로 다시 보내달라는 말은 절대 하지 마세요. 들은 내용에 곱바로 자연스럽게 답하고 reply는 2~3문장 이내로 짧게 작성하세요.' : '' }}\n\n{{ $json.isVoice ? '지금 사용자는 음성으로 대화 중입니다. reply는 2~3문장 이내의 짧고 자연스러운 구어체로 작성하세요.' : '' }}"
-        }
-      },
       "id": "ba0f4135-3f22-456b-ae77-f555536f81f8",
       "name": "AI Assistant",
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -188,17 +181,16 @@
       "position": [
         1296,
         -576
-      ]
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.userMessage }}",
+        "options": {
+          "systemMessage": "=당신은 BC Kim의 개인 비서입니다.\n\n아래 [참고 문서]에는 사용자가 시스템에 등록·보유한 문서에서 이번 질문과 관련해 검색된 실제 내용이 들어 있습니다. 이것은 사용자가 이미 등록한 문서 그 자체입니다.\n- [참고 문서]에 내용이 있으면, 반드시 그 내용을 근거로 질문에 직접·구체적으로 답하세요. 절대 \"문서를 볼 수 없다\", \"등록된 문서 내용을 확인할 수 없다\"고 답하지 마세요.\n- 어떤 문서가 등록됐는지·무슨 내용인지 묻는 경우에도, [참고 문서]를 보고 어떤 문서가 있는지와 그 요지를 설명하세요. 질문의 문서 이름이 조금 달라도 [참고 문서]와 같은 문서로 판단되면 그것을 근거로 답하세요.\n- [참고 문서]가 정확히 \"(관련 등록 문서 없음)\"일 때만 관련 문서를 찾지 못했다고 안내하세요.\n\n[참고 문서]\n{{ $json.context }}\n\n반드시 아래 JSON 형식으로만 응답하세요. JSON 외 다른 텍스트는 절대 출력하지 마세요.\n\n이메일 발송 요청이고 받는사람/제목/본문이 모두 명확하면:\n{\"action\":\"email\",\"to\":\"받는주소\",\"subject\":\"제목\",\"body\":\"본문\"}\n\n날씨 질문이고 지역이 분명하면(한국 지명은 영문으로 변환):\n{\"action\":\"weather\",\"location\":\"Seoul\"}\n날씨 질문인데 지역이 불분명하면 action을 chat으로 하고 reply에 \"어느 지역 날씨를 알려드릴까요?\"라고 되물으세요.\n\n그 외 모든 경우(일반 대화, 문서 기반 질의응답, 이메일 정보 부족 등):\n{\"action\":\"chat\",\"reply\":\"사용자에게 보낼 한국어 답변\"}\n\n이메일 정보가 부족하면 action을 chat으로 하고 reply에 무엇이 필요한지 물어보세요.\n\n{{ $json.isVoice ? '사용자가 방금 음성 메시지로 말했고, 그 음성은 이미 정확한 텍스트로 변환되어 위 질문으로 전달되었습니다. 당신의 reply도 자동으로 음성으로 변환되어 사용자에게 들립니다. 그러므로 음성을 들을 수 없다거나 음성 대화를 지원하지 않는다거나 텍스트로 다시 보내달라는 말은 절대 하지 마세요. 들은 내용에 곱바로 자연스럽게 답하고 reply는 2~3문장 이내로 짧게 작성하세요.' : '' }}\n\n{{ $json.isVoice ? '지금 사용자는 음성으로 대화 중입니다. reply는 2~3문장 이내의 짧고 자연스러운 구어체로 작성하세요.' : '' }}"
+        }
+      }
     },
     {
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "id",
-          "value": "gpt-4o-mini"
-        },
-        "options": {}
-      },
       "id": "ec88fca1-7f0c-491d-aa51-e04678fb6d1b",
       "name": "OpenAI Chat Model",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
@@ -207,6 +199,14 @@
         1264,
         -272
       ],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
       "credentials": {
         "openAiApi": {
           "id": "",
@@ -215,11 +215,6 @@
       }
     },
     {
-      "parameters": {
-        "sessionIdType": "customKey",
-        "sessionKey": "={{ $(\"Telegram Trigger\").item.json.message.chat.id }}",
-        "contextWindowLength": 10
-      },
       "id": "284fa92f-9be8-4ce2-b415-82e267393786",
       "name": "Conversation Memory",
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
@@ -227,16 +222,14 @@
       "position": [
         1488,
         -272
-      ]
+      ],
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $(\"Telegram Trigger\").item.json.message.chat.id }}",
+        "contextWindowLength": 10
+      }
     },
     {
-      "parameters": {
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "={{ $json.reply }}",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
       "id": "664502f0-57ff-4905-9fda-dc8467103da4",
       "name": "Reply: Chat",
       "type": "n8n-nodes-base.telegram",
@@ -245,6 +238,13 @@
         2592,
         -816
       ],
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
       "webhookId": "ae8b4fad-2386-49cc-beb1-c3e1c6bfdbf4",
       "credentials": {
         "telegramApi": {
@@ -254,9 +254,6 @@
       }
     },
     {
-      "parameters": {
-        "jsCode": "const raw = ($input.first().json.output ?? '').toString();\nlet parsed;\ntry {\n  let txt = raw.trim();\n  const m = txt.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(m ? m[0] : txt);\n} catch (e) {\n  parsed = { action: 'chat', reply: raw };\n}\nif (!parsed.action) parsed.action = 'chat';\nif (parsed.action === 'chat' && !parsed.reply) parsed.reply = raw;\nconst bc = $('Build Context').first().json;\nconst chatId = bc.chatId;\nconst isVoice = bc.isVoice === true;\nreturn [{ json: { action: parsed.action, to: parsed.to || '', subject: parsed.subject || '', body: parsed.body || '', reply: parsed.reply || '', location: parsed.location || '', chatId, isVoice } }];"
-      },
       "id": "7f61781f-2e5c-44b7-8ef2-d88c6da5de4a",
       "name": "Parse Response",
       "type": "n8n-nodes-base.code",
@@ -264,9 +261,20 @@
       "position": [
         1696,
         -1392
-      ]
+      ],
+      "parameters": {
+        "jsCode": "const raw = ($input.first().json.output ?? '').toString();\nlet parsed;\ntry {\n  let txt = raw.trim();\n  const m = txt.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(m ? m[0] : txt);\n} catch (e) {\n  parsed = { action: 'chat', reply: raw };\n}\nif (!parsed.action) parsed.action = 'chat';\nif (parsed.action === 'chat' && !parsed.reply) parsed.reply = raw;\nconst bc = $('Build Context').first().json;\nconst chatId = bc.chatId;\nconst isVoice = bc.isVoice === true;\nreturn [{ json: { action: parsed.action, to: parsed.to || '', subject: parsed.subject || '', body: parsed.body || '', reply: parsed.reply || '', location: parsed.location || '', chatId, isVoice } }];"
+      }
     },
     {
+      "id": "ea6e4257-3d2c-4f86-944a-8efb7618dcb8",
+      "name": "Is Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1984,
+        -1344
+      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -289,17 +297,17 @@
           "combinator": "and"
         },
         "options": {}
-      },
-      "id": "ea6e4257-3d2c-4f86-944a-8efb7618dcb8",
-      "name": "Is Email?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        1984,
-        -1344
-      ]
+      }
     },
     {
+      "id": "307d0ce6-0067-4dbc-afe1-464eeff02a91",
+      "name": "Send Email Sub",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1920,
+        -16
+      ],
       "parameters": {
         "workflowId": {
           "__rl": true,
@@ -347,24 +355,9 @@
           "convertFieldsToString": true
         },
         "options": {}
-      },
-      "id": "307d0ce6-0067-4dbc-afe1-464eeff02a91",
-      "name": "Send Email Sub",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.3,
-      "position": [
-        1920,
-        -16
-      ]
+      }
     },
     {
-      "parameters": {
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "={{ $json.result || '✉️ 메일 처리 완료' }}",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
       "id": "df9ea482-705a-4ba1-b876-c61f58c4819e",
       "name": "Reply: Email",
       "type": "n8n-nodes-base.telegram",
@@ -373,6 +366,13 @@
         2208,
         240
       ],
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.result || '✉️ 메일 처리 완료' }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
       "webhookId": "d7331ebf-9472-466d-9cb9-5d48f3adbeb5",
       "credentials": {
         "telegramApi": {
@@ -382,13 +382,6 @@
       }
     },
     {
-      "parameters": {
-        "mode": "load",
-        "tableName": "telegram_docs",
-        "prompt": "={{ $json.query }}",
-        "topK": 5,
-        "options": {}
-      },
       "id": "e61a2bea-8890-416e-a7a8-301dce246914",
       "name": "Search RAG",
       "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
@@ -397,19 +390,23 @@
         912,
         -880
       ],
+      "parameters": {
+        "mode": "load",
+        "tableName": "telegram_docs",
+        "prompt": "={{ $json.query }}",
+        "topK": 5,
+        "options": {}
+      },
       "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
       "credentials": {
         "postgres": {
           "id": "",
           "name": "pgvector RAG (n8n_rag)"
         }
-      },
-      "onError": "continueRegularOutput"
+      }
     },
     {
-      "parameters": {
-        "options": {}
-      },
       "id": "a30382b8-8ac7-40cf-82a0-e08e95b83769",
       "name": "Embeddings (Query)",
       "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
@@ -418,6 +415,9 @@
         976,
         -576
       ],
+      "parameters": {
+        "options": {}
+      },
       "credentials": {
         "openAiApi": {
           "id": "",
@@ -426,9 +426,6 @@
       }
     },
     {
-      "parameters": {
-        "jsCode": "const items = $input.all();\nconst chunks = [];\nfor (const it of items) {\n  const j = it.json || {};\n  let text = '';\n  if (j.document && typeof j.document.pageContent === 'string') text = j.document.pageContent;\n  else if (typeof j.pageContent === 'string') text = j.pageContent;\n  else if (typeof j.text === 'string') text = j.text;\n  if (text && text.trim()) chunks.push(text.trim());\n}\nconst context = chunks.length\n  ? chunks.map((c, i) => `[문서 ${i + 1}]\\n${c}`).join('\\n\\n')\n  : '(관련 등록 문서 없음)';\nconst prep = $('Prepare Input').first().json;\nconst userMessage = prep.query || '';\nconst chatId = prep.chatId;\nconst isVoice = prep.isVoice === true;\nreturn [{ json: { userMessage, context, chatId, isVoice } }];"
-      },
       "id": "17214b29-c346-46ce-8b9a-d0d630d78d3d",
       "name": "Build Context",
       "type": "n8n-nodes-base.code",
@@ -436,9 +433,20 @@
       "position": [
         1344,
         -1088
-      ]
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst chunks = [];\nfor (const it of items) {\n  const j = it.json || {};\n  let text = '';\n  if (j.document && typeof j.document.pageContent === 'string') text = j.document.pageContent;\n  else if (typeof j.pageContent === 'string') text = j.pageContent;\n  else if (typeof j.text === 'string') text = j.text;\n  if (text && text.trim()) chunks.push(text.trim());\n}\nconst context = chunks.length\n  ? chunks.map((c, i) => `[문서 ${i + 1}]\\n${c}`).join('\\n\\n')\n  : '(관련 등록 문서 없음)';\nconst prep = $('Prepare Input').first().json;\nconst userMessage = prep.query || '';\nconst chatId = prep.chatId;\nconst isVoice = prep.isVoice === true;\nreturn [{ json: { userMessage, context, chatId, isVoice } }];"
+      }
     },
     {
+      "id": "e8e5fc29-5009-443d-a622-ad07384b4b36",
+      "name": "Voice?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -64,
+        -192
+      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -462,22 +470,9 @@
           "combinator": "and"
         },
         "options": {}
-      },
-      "id": "e8e5fc29-5009-443d-a622-ad07384b4b36",
-      "name": "Voice?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -64,
-        -192
-      ]
+      }
     },
     {
-      "parameters": {
-        "resource": "file",
-        "fileId": "={{ $json.message.voice.file_id }}",
-        "additionalFields": {}
-      },
       "id": "84652434-5e9e-4af2-b592-c55578f19a19",
       "name": "Download Voice",
       "type": "n8n-nodes-base.telegram",
@@ -486,6 +481,11 @@
         352,
         -160
       ],
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.voice.file_id }}",
+        "additionalFields": {}
+      },
       "webhookId": "0d03ec4f-d791-41ba-8f8e-8d4cb0bb8e1d",
       "credentials": {
         "telegramApi": {
@@ -495,13 +495,6 @@
       }
     },
     {
-      "parameters": {
-        "resource": "audio",
-        "operation": "transcribe",
-        "options": {
-          "language": "ko"
-        }
-      },
       "id": "7fcd67a7-be40-4546-884f-e373ba26c604",
       "name": "Transcribe Voice",
       "type": "@n8n/n8n-nodes-langchain.openAi",
@@ -510,6 +503,13 @@
         704,
         -304
       ],
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {
+          "language": "ko"
+        }
+      },
       "credentials": {
         "openAiApi": {
           "id": "",
@@ -518,9 +518,6 @@
       }
     },
     {
-      "parameters": {
-        "jsCode": "const trig = $('Telegram Trigger').first().json;\nconst chatId = trig.message && trig.message.chat ? trig.message.chat.id : null;\nconst j = $input.first().json || {};\nlet query = '';\nlet isVoice = false;\nif (typeof j.text === 'string' && !j.message) {\n  query = j.text;\n  isVoice = true;\n} else {\n  query = (trig.message && trig.message.text) ? trig.message.text : '';\n  isVoice = false;\n}\nreturn [{ json: { query, isVoice, chatId } }];"
-      },
       "id": "df84cbc4-c84f-4cbf-84e0-6dfc9e2bb22d",
       "name": "Prepare Input",
       "type": "n8n-nodes-base.code",
@@ -528,9 +525,20 @@
       "position": [
         624,
         -480
-      ]
+      ],
+      "parameters": {
+        "jsCode": "const trig = $('Telegram Trigger').first().json;\nconst chatId = trig.message && trig.message.chat ? trig.message.chat.id : null;\nconst j = $input.first().json || {};\nlet query = '';\nlet isVoice = false;\nif (typeof j.text === 'string' && !j.message) {\n  query = j.text;\n  isVoice = true;\n} else {\n  query = (trig.message && trig.message.text) ? trig.message.text : '';\n  isVoice = false;\n}\nreturn [{ json: { query, isVoice, chatId } }];"
+      }
     },
     {
+      "id": "00cee54f-e463-4b6c-ad26-b9e0499a76bc",
+      "name": "Reply Voice?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2256,
+        -1008
+      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -554,17 +562,17 @@
           "combinator": "and"
         },
         "options": {}
-      },
-      "id": "00cee54f-e463-4b6c-ad26-b9e0499a76bc",
-      "name": "Reply Voice?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        2256,
-        -1024
-      ]
+      }
     },
     {
+      "id": "8a799983-9afb-46ff-b4cf-d0f6083dfd3f",
+      "name": "TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2576,
+        -1056
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.openai.com/v1/audio/speech",
@@ -581,14 +589,6 @@
           }
         }
       },
-      "id": "8a799983-9afb-46ff-b4cf-d0f6083dfd3f",
-      "name": "TTS",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2576,
-        -1056
-      ],
       "credentials": {
         "openAiApi": {
           "id": "",
@@ -597,9 +597,6 @@
       }
     },
     {
-      "parameters": {
-        "jsCode": "const item = $input.first();\nconst binary = item.binary || {};\nif (binary.data) {\n  binary.data.fileName = 'voice.ogg';\n  binary.data.mimeType = 'audio/ogg';\n}\nreturn [{ json: item.json || {}, binary }];"
-      },
       "id": "925b406d-d6dd-4201-a757-8f28291a8f16",
       "name": "Tag Audio",
       "type": "n8n-nodes-base.code",
@@ -607,9 +604,20 @@
       "position": [
         2752,
         -1056
-      ]
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst binary = item.binary || {};\nif (binary.data) {\n  binary.data.fileName = 'voice.ogg';\n  binary.data.mimeType = 'audio/ogg';\n}\nreturn [{ json: item.json || {}, binary }];"
+      }
     },
     {
+      "id": "05ae60af-9035-4a27-9e26-7d4f83c34bf7",
+      "name": "Send Voice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        -1040
+      ],
       "parameters": {
         "method": "POST",
         "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendVoice",
@@ -633,17 +641,17 @@
           ]
         },
         "options": {}
-      },
-      "id": "05ae60af-9035-4a27-9e26-7d4f83c34bf7",
-      "name": "Send Voice",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2880,
-        -1040
-      ]
+      }
     },
     {
+      "id": "9d224cd3-8dff-485c-b424-d16b9ad1dd13",
+      "name": "Care Admin?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1536,
+        -768
+      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -711,24 +719,9 @@
           "combinator": "or"
         },
         "options": {}
-      },
-      "id": "9d224cd3-8dff-485c-b424-d16b9ad1dd13",
-      "name": "Care Admin?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -1536,
-        -768
-      ]
+      }
     },
     {
-      "parameters": {
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "⚙️ 돌봄 통화 설정(관리자) 모드입니다. 아래를 열고 음성으로 말투·추임새·안내사항·맥락관리를 설정하세요. 저장하면 어르신 통화(돌봄 모드)에 바로 반영됩니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/care-admin.html",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
       "id": "28c45ea1-9ce8-468d-bd90-a357a577b511",
       "name": "Reply: Admin Link",
       "type": "n8n-nodes-base.telegram",
@@ -737,6 +730,13 @@
         -624,
         -528
       ],
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "⚙️ 돌봄 통화 설정(관리자) 모드입니다. 아래를 열고 음성으로 말투·추임새·안내사항·맥락관리를 설정하세요. 저장하면 어르신 통화(돌봄 모드)에 바로 반영됩니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/care-admin.html",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
       "webhookId": "c49cdcaf-5d04-4790-a8a6-b94174feb392",
       "credentials": {
         "telegramApi": {
@@ -746,6 +746,14 @@
       }
     },
     {
+      "id": "f5f43627-b45b-4d85-a261-0bc5f5d2660d",
+      "name": "Care Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1520,
+        -464
+      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -804,24 +812,9 @@
           "combinator": "or"
         },
         "options": {}
-      },
-      "id": "f5f43627-b45b-4d85-a261-0bc5f5d2660d",
-      "name": "Care Mode?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -1520,
-        -464
-      ]
+      }
     },
     {
-      "parameters": {
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "💚 어르신 돌봄 상담 모드입니다. 아래를 열고 [통화 시작]을 누른 뒤 편하게 말씀하세요. 따뜻한 생활지원사가 안부를 여쾰보고 지난 대화도 기억해 이어갑니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/care.html",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
       "id": "f7895db1-df59-4752-807e-1da3b0ea4f0f",
       "name": "Reply: Care Link",
       "type": "n8n-nodes-base.telegram",
@@ -830,6 +823,13 @@
         -896,
         -400
       ],
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "💚 어르신 돌봄 상담 모드입니다. 아래를 열고 [통화 시작]을 누른 뒤 편하게 말씀하세요. 따뜻한 생활지원사가 안부를 여쾰보고 지난 대화도 기억해 이어갑니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/care.html",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
       "webhookId": "9fe2df2a-5830-4ce1-bf65-14bac814e2d4",
       "credentials": {
         "telegramApi": {
@@ -839,6 +839,14 @@
       }
     },
     {
+      "id": "e87fefa5-76f8-4f29-9d77-2d4a291fd556",
+      "name": "Voice Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -896,
+        -160
+      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -888,24 +896,9 @@
           "combinator": "or"
         },
         "options": {}
-      },
-      "id": "e87fefa5-76f8-4f29-9d77-2d4a291fd556",
-      "name": "Voice Mode?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -896,
-        -160
-      ]
+      }
     },
     {
-      "parameters": {
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "🎙️ 실시간 음성 대화 모드입니다. 아래를 열고 [음성 대화 시작]을 누르세요. OpenAI 키는 처음 한 번만 입력하면 됩니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
       "id": "6782a7af-9092-4492-99fe-16b24db96097",
       "name": "Reply: App Link",
       "type": "n8n-nodes-base.telegram",
@@ -914,6 +907,13 @@
         -464,
         -368
       ],
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "🎙️ 실시간 음성 대화 모드입니다. 아래를 열고 [음성 대화 시작]을 누르세요. OpenAI 키는 처음 한 번만 입력하면 됩니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
       "webhookId": "0d499bde-bdb1-423e-b01b-84084d260beb",
       "credentials": {
         "telegramApi": {
@@ -923,13 +923,6 @@
       }
     },
     {
-      "parameters": {
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "=🎤 {{ $json.text }}",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
       "id": "5fbc6c5d-1a22-4700-b5ec-0cc5aa70837a",
       "name": "Reply: Heard",
       "type": "n8n-nodes-base.telegram",
@@ -938,6 +931,13 @@
         1072,
         -80
       ],
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "=🎤 {{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
       "webhookId": "d563389a-ed95-4b21-9605-ef69b7cad1bb",
       "credentials": {
         "telegramApi": {
@@ -947,6 +947,14 @@
       }
     },
     {
+      "id": "5c06506a-6d95-4332-9c99-a18cb47fe1a2",
+      "name": "Is Weather?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2384,
+        -1376
+      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -969,20 +977,9 @@
           "combinator": "and"
         },
         "options": {}
-      },
-      "id": "5c06506a-6d95-4332-9c99-a18cb47fe1a2",
-      "name": "Is Weather?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        2272,
-        -608
-      ]
+      }
     },
     {
-      "parameters": {
-        "jsCode": "const j=$input.first().json;\nconst M={'서울':'Seoul','부산':'Busan','대구':'Daegu','인천':'Incheon','광주':'Gwangju','대전':'Daejeon','울산':'Ulsan','세종':'Sejong','수원':'Suwon','성남':'Seongnam','고양':'Goyang','용인':'Yongin','부천':'Bucheon','춘천':'Chuncheon','강릉':'Gangneung','원주':'Wonju','청주':'Cheongju','천안':'Cheonan','전주':'Jeonju','목포':'Mokpo','여수':'Yeosu','순천':'Suncheon','포항':'Pohang','경주':'Gyeongju','구미':'Gumi','창원':'Changwon','진주':'Jinju','김해':'Gimhae','제주':'Jeju','서귀포':'Seogwipo','경기':'Suwon','강원':'Chuncheon','충북':'Cheongju','충남':'Cheonan','전북':'Jeonju','전남':'Mokpo','경북':'Pohang','경남':'Changwon'};\nlet loc=(j.location||'').trim();\nconst k=loc.replace(/(특별시|광역시|특별자치시|특별자치도|자치시|자치도|시|도|군|구)$/,'');\nconst q=M[loc]||M[k]||loc;\nreturn [{ json: { q, region: loc, isVoice: j.isVoice===true, chatId: j.chatId } }];"
-      },
       "id": "735fa1ce-c2f4-4cd1-b224-8737d7b2103c",
       "name": "Prep Weather",
       "type": "n8n-nodes-base.code",
@@ -990,13 +987,12 @@
       "position": [
         2496,
         -528
-      ]
+      ],
+      "parameters": {
+        "jsCode": "const j=$input.first().json;\nconst M={'서울':'Seoul','부산':'Busan','대구':'Daegu','인천':'Incheon','광주':'Gwangju','대전':'Daejeon','울산':'Ulsan','세종':'Sejong','수원':'Suwon','성남':'Seongnam','고양':'Goyang','용인':'Yongin','부천':'Bucheon','춘천':'Chuncheon','강릉':'Gangneung','원주':'Wonju','청주':'Cheongju','천안':'Cheonan','전주':'Jeonju','목포':'Mokpo','여수':'Yeosu','순천':'Suncheon','포항':'Pohang','경주':'Gyeongju','구미':'Gumi','창원':'Changwon','진주':'Jinju','김해':'Gimhae','제주':'Jeju','서귀포':'Seogwipo','경기':'Suwon','강원':'Chuncheon','충북':'Cheongju','충남':'Cheonan','전북':'Jeonju','전남':'Mokpo','경북':'Pohang','경남':'Changwon'};\nlet loc=(j.location||'').trim();\nconst k=loc.replace(/(특별시|광역시|특별자치시|특별자치도|자치시|자치도|시|도|군|구)$/,'');\nconst q=M[loc]||M[k]||loc;\nreturn [{ json: { q, region: loc, isVoice: j.isVoice===true, chatId: j.chatId } }];"
+      }
     },
     {
-      "parameters": {
-        "url": "=https://geocoding-api.open-meteo.com/v1/search?count=1&language=ko&name={{ $json.q }}",
-        "options": {}
-      },
       "id": "bffa39e8-57df-4d02-a5d8-0b20a8d00f9b",
       "name": "Get Geo",
       "type": "n8n-nodes-base.httpRequest",
@@ -1005,14 +1001,14 @@
         2656,
         -528
       ],
+      "parameters": {
+        "url": "=https://geocoding-api.open-meteo.com/v1/search?count=1&language=ko&name={{ $json.q }}",
+        "options": {}
+      },
       "alwaysOutputData": true,
       "onError": "continueRegularOutput"
     },
     {
-      "parameters": {
-        "url": "=https://api.open-meteo.com/v1/forecast?timezone=Asia%2FSeoul&forecast_days=1&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&latitude={{ $json.results[0].latitude }}&longitude={{ $json.results[0].longitude }}",
-        "options": {}
-      },
       "id": "f99b167e-1374-4c24-8cb5-05198fe66475",
       "name": "Get Weather",
       "type": "n8n-nodes-base.httpRequest",
@@ -1021,13 +1017,14 @@
         2816,
         -528
       ],
+      "parameters": {
+        "url": "=https://api.open-meteo.com/v1/forecast?timezone=Asia%2FSeoul&forecast_days=1&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&latitude={{ $json.results[0].latitude }}&longitude={{ $json.results[0].longitude }}",
+        "options": {}
+      },
       "alwaysOutputData": true,
       "onError": "continueRegularOutput"
     },
     {
-      "parameters": {
-        "jsCode": "const w=$input.first().json;\nlet prep={},pr={};\ntry{prep=$('Prep Weather').first().json;}catch(e){}\ntry{pr=$('Parse Response').first().json;}catch(e){}\nconst region=(prep.region||'').trim()||'요청하신 지역';\nfunction wko(c){ if(c===0)return'맑음'; if(c<=2)return'대체로 맑음'; if(c===3)return'흐림'; if(c<=48)return'안개'; if(c<=57)return'이슬비'; if(c<=67)return'비'; if(c<=77)return'눈'; if(c<=82)return'소나기'; if(c<=86)return'눈 소나기'; return'천둥번개'; }\nconst c=w&&w.current, d=w&&w.daily;\nlet reply;\nif(c&&typeof c.temperature_2m==='number'&&d){ reply=region+' 현재 '+Math.round(c.temperature_2m)+'도, '+wko(c.weather_code)+'이에요. 오늘 최고 '+Math.round(d.temperature_2m_max[0])+'도 최저 '+Math.round(d.temperature_2m_min[0])+'도, 강수확률은 '+d.precipitation_probability_max[0]+'%입니다.'; }\nelse { reply=region+' 날씨 정보를 찾지 못했어요. 큰 도시 이름으로 다시 말씀해 주시겠어요?'; }\nreturn [{ json: { action:'chat', reply, isVoice: pr.isVoice===true, chatId: pr.chatId } }];"
-      },
       "id": "3acac96c-c3d2-4fa1-95eb-237a719d94a8",
       "name": "Format Weather",
       "type": "n8n-nodes-base.code",
@@ -1035,9 +1032,20 @@
       "position": [
         2624,
         -176
-      ]
+      ],
+      "parameters": {
+        "jsCode": "const w=$input.first().json;\nlet prep={},pr={};\ntry{prep=$('Prep Weather').first().json;}catch(e){}\ntry{pr=$('Parse Response').first().json;}catch(e){}\nconst region=(prep.region||'').trim()||'요청하신 지역';\nfunction wko(c){ if(c===0)return'맑음'; if(c<=2)return'대체로 맑음'; if(c===3)return'흐림'; if(c<=48)return'안개'; if(c<=57)return'이슬비'; if(c<=67)return'비'; if(c<=77)return'눈'; if(c<=82)return'소나기'; if(c<=86)return'눈 소나기'; return'천둥번개'; }\nconst c=w&&w.current, d=w&&w.daily;\nlet reply;\nif(c&&typeof c.temperature_2m==='number'&&d){ reply=region+' 현재 '+Math.round(c.temperature_2m)+'도, '+wko(c.weather_code)+'이에요. 오늘 최고 '+Math.round(d.temperature_2m_max[0])+'도 최저 '+Math.round(d.temperature_2m_min[0])+'도, 강수확률은 '+d.precipitation_probability_max[0]+'%입니다.'; }\nelse { reply=region+' 날씨 정보를 찾지 못했어요. 큰 도시 이름으로 다시 말씀해 주시겠어요?'; }\nreturn [{ json: { action:'chat', reply, isVoice: pr.isVoice===true, chatId: pr.chatId } }];"
+      }
     },
     {
+      "id": "6e13f1a3-162f-46b9-aecf-03ef5755acf2",
+      "name": "Photo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1472,
+        -160
+      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -1061,22 +1069,9 @@
           "combinator": "and"
         },
         "options": {}
-      },
-      "id": "6e13f1a3-162f-46b9-aecf-03ef5755acf2",
-      "name": "Photo?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -1472,
-        -160
-      ]
+      }
     },
     {
-      "parameters": {
-        "resource": "file",
-        "fileId": "={{ $json.message.photo[$json.message.photo.length - 1].file_id }}",
-        "additionalFields": {}
-      },
       "id": "584bde71-e9a0-4f82-b2e6-b80962e7a2ce",
       "name": "Download Photo",
       "type": "n8n-nodes-base.telegram",
@@ -1085,6 +1080,11 @@
         -1136,
         -32
       ],
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.photo[$json.message.photo.length - 1].file_id }}",
+        "additionalFields": {}
+      },
       "webhookId": "ca53279d-2319-4d43-98d8-5727b8a3dc75",
       "credentials": {
         "telegramApi": {
@@ -1094,6 +1094,14 @@
       }
     },
     {
+      "id": "3cb5c22c-bbe4-419b-ba5f-78e4c3feec08",
+      "name": "Describe Image",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        -528,
+        -48
+      ],
       "parameters": {
         "resource": "image",
         "operation": "analyze",
@@ -1106,14 +1114,6 @@
         "inputType": "base64",
         "options": {}
       },
-      "id": "3cb5c22c-bbe4-419b-ba5f-78e4c3feec08",
-      "name": "Describe Image",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 2.3,
-      "position": [
-        -528,
-        -48
-      ],
       "credentials": {
         "openAiApi": {
           "id": "",
@@ -1122,9 +1122,6 @@
       }
     },
     {
-      "parameters": {
-        "jsCode": "function findText(node){\n  if(node==null) return '';\n  if(typeof node==='string') return node;\n  if(Array.isArray(node)){ for(const x of node){ const t=findText(x); if(t) return t; } return ''; }\n  if(typeof node==='object'){\n    if(node.type==='output_text' && typeof node.text==='string') return node.text;\n    if(typeof node.text==='string' && node.text.trim() && !Array.isArray(node.content)) return node.text;\n    if(Array.isArray(node.content)){ const t=findText(node.content); if(t) return t; }\n    if(node.output){ const t=findText(node.output); if(t) return t; }\n    if(node.message){ const t=findText(node.message); if(t) return t; }\n  }\n  return '';\n}\nconst items=$input.all();\nlet desc='';\nfor(const it of items){ desc=findText(it.json); if(desc && desc.trim()){ desc=desc.trim(); break; } }\nif(!desc) desc='사진 내용을 읽지 못했어요. 다시 보내주시겠어요?';\nconst chatId=$('Telegram Trigger').first().json.message.chat.id;\nconst sd=$getWorkflowStaticData('global');\nsd['photo_'+chatId]=desc;\nreturn [{ json:{ description:desc, chatId } }];"
-      },
       "id": "1109a773-9f1d-4344-a0a6-011351d6af89",
       "name": "Save Pending Photo",
       "type": "n8n-nodes-base.code",
@@ -1132,16 +1129,12 @@
       "position": [
         -128,
         48
-      ]
+      ],
+      "parameters": {
+        "jsCode": "function findText(node){\n  if(node==null) return '';\n  if(typeof node==='string') return node;\n  if(Array.isArray(node)){ for(const x of node){ const t=findText(x); if(t) return t; } return ''; }\n  if(typeof node==='object'){\n    if(node.type==='output_text' && typeof node.text==='string') return node.text;\n    if(typeof node.text==='string' && node.text.trim() && !Array.isArray(node.content)) return node.text;\n    if(Array.isArray(node.content)){ const t=findText(node.content); if(t) return t; }\n    if(node.output){ const t=findText(node.output); if(t) return t; }\n    if(node.message){ const t=findText(node.message); if(t) return t; }\n  }\n  return '';\n}\nconst items=$input.all();\nlet desc='';\nfor(const it of items){ desc=findText(it.json); if(desc && desc.trim()){ desc=desc.trim(); break; } }\nif(!desc) desc='사진 내용을 읽지 못했어요. 다시 보내주시겠어요?';\nconst chatId=$('Telegram Trigger').first().json.message.chat.id;\nconst sd=$getWorkflowStaticData('global');\nsd['photo_'+chatId]=desc;\nreturn [{ json:{ description:desc, chatId } }];"
+      }
     },
     {
-      "parameters": {
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "=📷 {{ $json.description }}\n\n이 사진 내용을 문서로 등록(RAG)할까요? 등록하시려면 \"사진 등록\"이라고 보내주세요.",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
       "id": "c855ee63-20de-4b4f-841b-cd14ac83df15",
       "name": "Reply: Photo",
       "type": "n8n-nodes-base.telegram",
@@ -1150,6 +1143,13 @@
         192,
         160
       ],
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "=📷 {{ $json.description }}\n\n이 사진 내용을 문서로 등록(RAG)할까요? 등록하시려면 \"사진 등록\"이라고 보내주세요.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
       "webhookId": "e7c267a6-8232-4110-8d83-01d590ad757f",
       "credentials": {
         "telegramApi": {
@@ -1159,6 +1159,14 @@
       }
     },
     {
+      "id": "e919ef28-71bb-4ce3-8823-19001e7d7cb4",
+      "name": "Save Photo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1520,
+        -1072
+      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -1208,20 +1216,9 @@
           "combinator": "or"
         },
         "options": {}
-      },
-      "id": "e919ef28-71bb-4ce3-8823-19001e7d7cb4",
-      "name": "Save Photo?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -1520,
-        -1072
-      ]
+      }
     },
     {
-      "parameters": {
-        "jsCode": "const chatId=$('Telegram Trigger').first().json.message.chat.id;\nconst sd=$getWorkflowStaticData('global');\nconst key='photo_'+chatId;\nconst text=sd[key]||'';\ndelete sd[key];\nreturn [{ json: { text, found: !!text, chatId } }];"
-      },
       "id": "d145f27b-3d4b-4be5-9477-dfd1c19034b2",
       "name": "Embed Pending",
       "type": "n8n-nodes-base.code",
@@ -1229,9 +1226,20 @@
       "position": [
         -1088,
         -1088
-      ]
+      ],
+      "parameters": {
+        "jsCode": "const chatId=$('Telegram Trigger').first().json.message.chat.id;\nconst sd=$getWorkflowStaticData('global');\nconst key='photo_'+chatId;\nconst text=sd[key]||'';\ndelete sd[key];\nreturn [{ json: { text, found: !!text, chatId } }];"
+      }
     },
     {
+      "id": "57f7b66a-8bf8-41b7-9d52-58a9c3fdae4f",
+      "name": "Has Pending?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -688,
+        -1088
+      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -1255,22 +1263,9 @@
           "combinator": "and"
         },
         "options": {}
-      },
-      "id": "57f7b66a-8bf8-41b7-9d52-58a9c3fdae4f",
-      "name": "Has Pending?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -688,
-        -1088
-      ]
+      }
     },
     {
-      "parameters": {
-        "jsonMode": "expressionData",
-        "jsonData": "={{ $json.text }}",
-        "options": {}
-      },
       "id": "db82acd7-76cc-4e5d-b4f8-9ab5c05a2171",
       "name": "Photo Loader",
       "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
@@ -1278,12 +1273,14 @@
       "position": [
         352,
         -544
-      ]
+      ],
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.text }}",
+        "options": {}
+      }
     },
     {
-      "parameters": {
-        "options": {}
-      },
       "id": "39693fb0-2394-40a7-b44e-b0d2a711c111",
       "name": "Embeddings (Photo)",
       "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
@@ -1292,6 +1289,9 @@
         128,
         -576
       ],
+      "parameters": {
+        "options": {}
+      },
       "credentials": {
         "openAiApi": {
           "id": "",
@@ -1300,11 +1300,6 @@
       }
     },
     {
-      "parameters": {
-        "mode": "insert",
-        "tableName": "telegram_docs",
-        "options": {}
-      },
       "id": "7c5577f1-3242-493b-af7e-54ba039b7a0f",
       "name": "Embed Photo",
       "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
@@ -1313,6 +1308,11 @@
         -160,
         -944
       ],
+      "parameters": {
+        "mode": "insert",
+        "tableName": "telegram_docs",
+        "options": {}
+      },
       "credentials": {
         "postgres": {
           "id": "",
@@ -1321,13 +1321,6 @@
       }
     },
     {
-      "parameters": {
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "✅ 사진 내용을 문서로 등록했어요. 이제 관련 질문에 이 내용으로 답할 수 있어요.",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
       "id": "370932f0-9ab7-41f1-82db-50f0e6419f56",
       "name": "Reply: Saved",
       "type": "n8n-nodes-base.telegram",
@@ -1336,6 +1329,13 @@
         224,
         -944
       ],
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "✅ 사진 내용을 문서로 등록했어요. 이제 관련 질문에 이 내용으로 답할 수 있어요.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
       "webhookId": "c0bbf1c9-6b00-4d8f-b482-9e3d9a22c554",
       "credentials": {
         "telegramApi": {
@@ -1345,13 +1345,6 @@
       }
     },
     {
-      "parameters": {
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "등록할 사진이 없어요. 먼저 사진을 보내주세요.",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
       "id": "ed6e1ad8-8e80-4bd3-9de8-f0e73c9c7237",
       "name": "Reply: No Photo",
       "type": "n8n-nodes-base.telegram",
@@ -1360,6 +1353,13 @@
         -448,
         -800
       ],
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "등록할 사진이 없어요. 먼저 사진을 보내주세요.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
       "webhookId": "c506d5c2-b0af-4c9f-8d5e-65f8731d9c15",
       "credentials": {
         "telegramApi": {
@@ -1375,15 +1375,15 @@
       "typeVersion": 2.2,
       "position": [
         -512,
-        -660
+        -656
       ],
       "parameters": {
         "conditions": {
           "options": {
-            "version": 2,
-            "leftValue": "",
             "caseSensitive": false,
-            "typeValidation": "loose"
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
           },
           "conditions": [
             {
@@ -1452,25 +1452,23 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        -220,
+        -224,
         -720
       ],
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
         "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
         "text": "💊 복약 일정 관리 페이지입니다. 시간을 골라 약을 추가하거나, 자연어로 적으면 AI가 일정표로 정리해줍니다. 여기서 등록한 일정은 어르신 복약 안내 통화에 자동 반영됩니다.\n\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/med.html",
         "additionalFields": {
           "appendAttribution": false
         }
       },
+      "webhookId": "0877e4ad-5cc6-4e17-aae8-20ab11b602ba",
       "credentials": {
         "telegramApi": {
           "id": "",
           "name": "Telegram Bot"
         }
-      },
-      "webhookId": "0877e4ad-5cc6-4e17-aae8-20ab11b602ba"
+      }
     },
     {
       "id": "70d04428-72c1-47c5-b52c-acffc37a93a0",
@@ -1484,16 +1482,48 @@
       "parameters": {
         "conditions": {
           "options": {
-            "caseSensitive": false,
+            "version": 2,
             "leftValue": "",
-            "typeValidation": "loose",
-            "version": 2
+            "caseSensitive": false,
+            "typeValidation": "loose"
           },
           "conditions": [
-            { "id": "mo1", "leftValue": "={{ $json.message.text }}", "rightValue": "모니터링", "operator": { "type": "string", "operation": "contains" } },
-            { "id": "mo2", "leftValue": "={{ $json.message.text }}", "rightValue": "대시보드", "operator": { "type": "string", "operation": "contains" } },
-            { "id": "mo3", "leftValue": "={{ $json.message.text }}", "rightValue": "접속현황", "operator": { "type": "string", "operation": "contains" } },
-            { "id": "mo4", "leftValue": "={{ $json.message.text }}", "rightValue": "접속 현황", "operator": { "type": "string", "operation": "contains" } }
+            {
+              "id": "mo1",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "모니터링",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "mo2",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "대시보드",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "mo3",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "접속현황",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "mo4",
+              "leftValue": "={{ $json.message.text }}",
+              "rightValue": "접속 현황",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
           ],
           "combinator": "or"
         },
@@ -1518,13 +1548,13 @@
           "appendAttribution": false
         }
       },
+      "webhookId": "5bc606bb-6119-4a17-91e5-9750db66da37",
       "credentials": {
         "telegramApi": {
           "id": "",
           "name": "Telegram Bot"
         }
-      },
-      "webhookId": "a1b2c3d4-0000-4000-8000-monitorlink01"
+      }
     }
   ],
   "connections": {
@@ -1821,24 +1851,6 @@
         ]
       ]
     },
-    "Monitor?": {
-      "main": [
-        [
-          {
-            "node": "Reply: Monitor Link",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Care Mode?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Care Mode?": {
       "main": [
         [
@@ -2091,6 +2103,24 @@
         [
           {
             "node": "Care Admin?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monitor?": {
+      "main": [
+        [
+          {
+            "node": "Reply: Monitor Link",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Care Mode?",
             "type": "main",
             "index": 0
           }

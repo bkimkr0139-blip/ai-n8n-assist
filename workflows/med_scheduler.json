@@ -10,7 +10,6 @@
         0,
         -160
       ],
-      "webhookId": "med-config",
       "parameters": {
         "httpMethod": "POST",
         "path": "med-config",
@@ -18,7 +17,8 @@
         "options": {
           "allowedOrigins": "*"
         }
-      }
+      },
+      "webhookId": "med-config"
     },
     {
       "id": "prep",
@@ -124,13 +124,13 @@
           "appendAttribution": false
         }
       },
+      "webhookId": "2a070c56-593e-4448-8ac4-f7bde93b659a",
       "credentials": {
         "telegramApi": {
           "id": "",
           "name": "Telegram Bot"
         }
-      },
-      "webhookId": "2a070c56-593e-4448-8ac4-f7bde93b659a"
+      }
     }
   ],
   "connections": {
