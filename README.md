@@ -13,6 +13,7 @@ n8n으로 만든 **텔레그램 개인 비서 봇**. 텔레그램으로 대화�
 - 💊 **복약 일정 관리 UI**: [`realtime-voice/med.html`](realtime-voice/med.html) — 시간 선택기 폼 + 자연어 입력("매일 아침 식후 치매약, 점심 후 혈당약…")을 AI가 일정표로 정리, 시간순 표로 추가/삭제. localStorage `med_schedule`에 저장되어 care.html 복약 통화에 자동 반영. 텔레그램 **"복약 설정/복약 등록"** → med.html 링크
 - 💊 **복약 알림(일정 연동)**: med.html에서 등록한 일정을 n8n `med_scheduler`로 동기화(웹훅, CORS) → 5분마다 현재 시각 확인 → 해당 약 시간에 어르신에게 텔레그램 알림 + 복약통화 링크(care.html?purpose=med). 일정은 med.html(유저별 localStorage)이 원본, n8n은 알림만 담당. ⚠️ 브라우저는 스스로 전화벨/자동발신 불가 → "알림(=벨)→탭하면 통화". SMS/전화/웹푸시·자동발신은 Twilio 등 전화망 연동 필요(향후)
 - 🌤️ **날씨**: 텔레그램에서 날씨를 물으면 지역을 되묻고 해당 지역 날씨를 검색해 답(Open-Meteo, 무료·키 불필요). 돌봄 통화(care.html)에선 거주지역(기본 서울, 수정 가능)을 Realtime function calling으로 조회해 맥락있게 안내
+- 📰 **뉴스**: 돌봄 통화(care.html)에서 "오늘 뉴스 뭐 있어?" 물으면 "찾아볼게요" 추임새 후 Google News RSS(한국, CORS 프록시 경유, 키 불필요) 헤드라인 2~4개를 자연스럽게 읽어줌(get_news function tool)
 - 🎙️ **음성 대화**: 음성 메시지를 보내면 Whisper로 전사 → 같은 파이프라인 처리 → 답변을 TTS 음성으로 회신 (텍스트로 보내면 텍스트로 답)
 - 📞 **실시간 음성대화(별도 웹앱)**: 텔레그램은 턴 기반이라 핸즈프리 실시간이 불가 → [`realtime-voice/`](realtime-voice/)에 OpenAI Realtime API 기반 브라우저 웹앱(마이크 안 누르고 연속 음성↔음성, `gpt-realtime`). **GitHub Pages 고정 URL**: https://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/ . 텔레그램 **"음성대화"** → 이 링크 회신
 - ⚙️ **돌봄 관리자 설정 모드**: [`realtime-voice/care-admin.html`](realtime-voice/care-admin.html) — 관리자가 음성 대화로 돌봄 AI의 말투·추임새·안내사항·맥락관리를 맞춤 설정 → `localStorage.care_config`에 저장 → care.html이 통화 시 주입(같은 Pages 도메인이라 공유). 텔레그램 **"돌봄 설정/관리자/통화 조정"** → care-admin.html 링크

@@ -133,6 +133,22 @@
     function weatherTool(){ return { type:'function', name:'get_weather',
       description:'특정 지역의 현재 날씨와 오늘 예보를 가져온다. 어르신이 지역을 말하지 않으면 location을 비워두면 거주지역으로 조회한다. 이 도구를 호출하기 직전에 먼저 "네, 잠시만요. 찾아볼게요"라고 짧게 말할 것.',
       parameters:{ type:'object', properties:{ location:{ type:'string', description:'도시명. 가능하면 영문(예: Seoul, Busan). 어르신 거주지역이면 비워둠.' } }, required:[] } }; }
+    async function getNews(topic){
+      const base=(topic&&topic.trim())
+        ? 'https://news.google.com/rss/search?q='+encodeURIComponent(topic.trim())+'&hl=ko&gl=KR&ceid=KR:ko'
+        : 'https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko';
+      try{
+        const r=await fetch('https://api.allorigins.win/raw?url='+encodeURIComponent(base));
+        const xml=await r.text();
+        const doc=new DOMParser().parseFromString(xml,'text/xml');
+        let items=Array.from(doc.querySelectorAll('item > title')).map(t=>(t.textContent||'').trim()).filter(Boolean).slice(0,5);
+        if(!items.length) return '지금은 뉴스를 가져오지 못했어요.';
+        return items.map((t,i)=>(i+1)+'. '+t).join('\n');
+      }catch(e){ return '지금은 뉴스를 가져오지 못했어요.'; }
+    }
+    function newsTool(){ return { type:'function', name:'get_news',
+      description:'오늘의 주요 뉴스 헤드라인을 가져온다. topic을 주면 그 주제 뉴스, 없으면 전체 헤드라인. 호출 직전 "네, 제가 한번 찾아볼게요"라고 짧게 말할 것. 결과가 오면 헤드라인 2~4개만 골라 자연스럽게 요약해 읽어주고, 언론사명·기호·따옴표는 생략하라.',
+      parameters:{ type:'object', properties:{ topic:{ type:'string', description:'뉴스 주제(선택). 예: 건강, 날씨, 정치. 없으면 전체.' } }, required:[] } }; }
 
     const END_WORDS = ['끊','그만','이만','들어가','안녕히','수고했','수고하','잘 있','다음에 봐'];
     function isEndIntent(t){ return END_WORDS.some(w => t.indexOf(w) >= 0); }
@@ -157,7 +173,7 @@
     }
     function sessionConfig(){
       return { type:'session.update', session:{ type:'realtime', instructions: buildInstructions(),
-        tools:[ weatherTool() ], tool_choice:'auto',
+        tools:[ weatherTool(), newsTool() ], tool_choice:'auto',
         audio:{ input:{ transcription:{ model:'whisper-1' }, noise_reduction:{ type:(ENV[els.env.value]||ENV.normal).nr }, turn_detection:{ type:'server_vad', threshold:(ENV[els.env.value]||ENV.normal).th, prefix_padding_ms:200, silence_duration_ms:500 } },
                 output:{ voice: els.voice.value, speed: parseFloat(els.speed.value) } } } };
     }
@@ -166,6 +182,7 @@
       let args={}; try{ args=JSON.parse(item.arguments||'{}'); }catch{}
       let out='';
       if(item.name==='get_weather'){ setStatus('🌤️ 날씨 확인 중...'); out = await getWeather(args.location); add('sys','🌤️ '+out); }
+      else if(item.name==='get_news'){ setStatus('📰 뉴스 확인 중...'); out = await getNews(args.topic); add('sys','📰 '+out); }
       else out = '지원하지 않는 기능입니다.';
       try{ dc.send(JSON.stringify({ type:'conversation.item.create', item:{ type:'function_call_output', call_id:item.call_id, output: out } })); dc.send(JSON.stringify({ type:'response.create' })); }catch{}
     }
