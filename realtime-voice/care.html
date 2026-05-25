@@ -52,6 +52,11 @@
       <label>소음환경</label>
       <select id="env"><option value="quiet">조용한 방</option><option value="normal" selected>보통</option><option value="noisy">TV·소음 많음</option></select>
     </div>
+    <div class="row" style="margin-top:10px; align-items:center; gap:12px; flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600"><input type="checkbox" id="vfilter" checked style="width:18px;height:18px" /> 어르신 목소리만 듣기 (TV·잡음 필터)</label>
+      <button id="relearn" class="small" type="button">🎤 목소리 다시 학습</button>
+      <span id="vstate" style="font-size:.9rem; color:#0a7d33"></span>
+    </div>
     <button id="start" class="bigbtn">▶ 통화 시작</button>
     <button id="stop" class="bigbtn stop" disabled>■ 통화 끝내기</button>
   </div>
@@ -100,7 +105,8 @@
     const PURPOSE = (new URLSearchParams(location.search).get('purpose') || new URLSearchParams(location.search).get('p') || '').trim();
     const $ = (id) => document.getElementById(id);
     const els = { worker:$('worker'), region:$('region'), voice:$('voice'), speed:$('speed'), env:$('env'), start:$('start'), stop:$('stop'), status:$('status'),
-                  log:$('log'), audio:$('audio'), memstate:$('memstate'), memtext:$('memtext'), clearmem:$('clearmem') };
+                  log:$('log'), audio:$('audio'), memstate:$('memstate'), memtext:$('memtext'), clearmem:$('clearmem'),
+                  vfilter:$('vfilter'), relearn:$('relearn'), vstate:$('vstate') };
     const ENV = { quiet:{nr:'near_field',th:0.45}, normal:{nr:'far_field',th:0.55}, noisy:{nr:'far_field',th:0.72} };
     els.env.value = localStorage.getItem('care_env') || 'normal';
     els.worker.value = localStorage.getItem(WORKER_KEY) || '';
@@ -229,6 +235,68 @@
       try{ dc.send(JSON.stringify({ type:'conversation.item.create', item:{ type:'function_call_output', call_id:item.call_id, output: out } })); dc.send(JSON.stringify({ type:'response.create' })); }catch{}
     }
 
+    // ===== 어르신 목소리 학습 + 화자 필터 (피치 기반 게이트) =====
+    // 통화 중 어르신 목소리의 음높이(F0) 범위를 학습→기억하고, OpenAI로 보내기 전 GainNode로
+    // 학습된 음역과 다른 TV·타인 목소리를 음소거(게이트)해 AI가 반응하지 않게 한다.
+    // ※ 진짜 화자 생체인식이 아니라 피치 기반 근사 — 음역이 비슷한 목소리는 구분 못 할 수 있음.
+    const VOICE_KEY = 'care_voice_' + DEVICE_ID;
+    let audioCtx=null, vfSource=null, vfAnalyser=null, vfGate=null, vfDest=null, vfTimer=null, vfBuf=null;
+    let voiceLo=0, voiceHi=0, learnSamples=[], learnUntil=0, gateOpen=true;
+    function loadVoice(){ try{ const v=JSON.parse(localStorage.getItem(VOICE_KEY)||'null'); if(v&&v.lo&&v.hi){ voiceLo=v.lo; voiceHi=v.hi; } }catch(e){} }
+    function saveVoice(){ try{ localStorage.setItem(VOICE_KEY, JSON.stringify({lo:voiceLo,hi:voiceHi})); }catch(e){} }
+    function clearVoice(){ voiceLo=0; voiceHi=0; learnSamples=[]; try{ localStorage.removeItem(VOICE_KEY); }catch(e){} }
+    function vfStateText(){
+      if(els.vfilter && !els.vfilter.checked){ els.vstate.textContent='필터 꺼짐 (모든 소리 전달)'; els.vstate.style.color='#999'; return; }
+      if(voiceLo&&voiceHi){ els.vstate.textContent='✅ 어르신 목소리 기억됨('+Math.round(voiceLo)+'~'+Math.round(voiceHi)+'Hz) · TV·잡음 필터 ON'; els.vstate.style.color='#0a7d33'; }
+      else { els.vstate.textContent='통화 시작 후 처음 말씀하시는 목소리를 학습합니다'; els.vstate.style.color='#b8860b'; }
+    }
+    // 자기상관 기반 F0(피치) 추정 (70~400Hz)
+    function estimatePitch(buf, sr){
+      let rms=0; for(let i=0;i<buf.length;i++){ rms+=buf[i]*buf[i]; } rms=Math.sqrt(rms/buf.length);
+      if(rms<0.01) return 0;
+      const minP=Math.floor(sr/400), maxP=Math.floor(sr/70); let best=0, bestOff=-1;
+      for(let off=minP; off<=maxP; off++){ let s=0; for(let i=0;i<buf.length-off;i++){ s+=buf[i]*buf[i+off]; } if(s>best){ best=s; bestOff=off; } }
+      if(bestOff<=0) return 0; const f0=sr/bestOff; return (f0>=70&&f0<=400)?f0:0;
+    }
+    function lockProfile(){
+      if(learnSamples.length<5) return;
+      const s=learnSamples.slice().sort((a,b)=>a-b);
+      voiceLo=s[Math.floor(s.length*0.15)]; voiceHi=s[Math.floor(s.length*0.85)];
+      if(voiceHi-voiceLo<40){ const m=(voiceLo+voiceHi)/2; voiceLo=m-25; voiceHi=m+25; }
+      saveVoice(); vfStateText(); add('sys','🎙️ 어르신 목소리를 학습했어요. 이제 TV·다른 소리는 걸러냅니다.');
+    }
+    function startVoiceFilter(){
+      try{
+        audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+        try{ audioCtx.resume(); }catch(e){}
+        vfSource = audioCtx.createMediaStreamSource(micStream);
+        vfAnalyser = audioCtx.createAnalyser(); vfAnalyser.fftSize=2048; vfBuf=new Float32Array(vfAnalyser.fftSize);
+        vfGate = audioCtx.createGain(); vfGate.gain.value=1;
+        vfDest = audioCtx.createMediaStreamDestination();
+        vfSource.connect(vfAnalyser);                       // 분석용 탭
+        vfSource.connect(vfGate); vfGate.connect(vfDest);   // 게이트 경로(OpenAI로 전송)
+        learnSamples=[]; gateOpen=true; learnUntil = voiceLo? 0 : (Date.now()+2500);
+        vfTimer = setInterval(()=>{
+          if(!audioCtx) return;
+          vfAnalyser.getFloatTimeDomainData(vfBuf);
+          const f0 = estimatePitch(vfBuf, audioCtx.sampleRate);
+          let pass=true;
+          if(els.vfilter.checked){
+            if(f0>0){
+              if(!voiceLo){ learnSamples.push(f0); if(Date.now()>learnUntil && learnSamples.length>=8) lockProfile(); }
+              else { const tol=Math.max(25,(voiceHi-voiceLo)*0.35); pass=(f0>=voiceLo-tol && f0<=voiceHi+tol); }
+            } else { pass=gateOpen; }   // 무음/자음 구간은 직전 상태 유지(말 끊김 방지)
+          }
+          gateOpen=pass;
+          try{ vfGate.gain.setTargetAtTime(pass?1:0, audioCtx.currentTime, 0.04); }catch(e){ vfGate.gain.value=pass?1:0; }
+        }, 70);
+        return vfDest.stream.getAudioTracks()[0];
+      }catch(e){ return null; }
+    }
+    function stopVoiceFilter(){ if(vfTimer){ clearInterval(vfTimer); vfTimer=null; } try{ if(audioCtx) audioCtx.close(); }catch(e){} audioCtx=vfSource=vfAnalyser=vfGate=vfDest=null; }
+    loadVoice();
+    if(els.vfilter){ els.vfilter.onchange=vfStateText; els.relearn.onclick=()=>{ clearVoice(); learnUntil=Date.now()+2500; vfStateText(); add('sys','🎤 다음에 말씀하시면 목소리를 다시 학습합니다.'); }; vfStateText(); }
+
     async function start(){
       saveProfile();
       els.start.disabled = true; turns = []; endRequested=false; ending=false;
@@ -242,7 +310,10 @@
       catch(e){ setStatus('❌ 마이크 권한이 거부되었습니다.'); els.start.disabled=false; return; }
       pc = new RTCPeerConnection();
       pc.ontrack = (e)=> els.audio.srcObject = e.streams[0];
-      micStream.getTracks().forEach(t=> pc.addTrack(t, micStream));
+      // 화자 필터: 게이트 처리된 트랙을 보냄(어르신 목소리만 통과). 실패하면 원시 마이크로 폴백.
+      const gatedTrack = startVoiceFilter();
+      if(gatedTrack && vfDest){ pc.addTrack(gatedTrack, vfDest.stream); }
+      else { micStream.getTracks().forEach(t=> pc.addTrack(t, micStream)); }
       dc = pc.createDataChannel('oai-events');
       dc.onopen = ()=>{ setStatus('🟢 연결됐어요 — 편하게 말씀하세요'); try{ dc.send(JSON.stringify(sessionConfig())); }catch{}; try{ dc.send(JSON.stringify({type:'response.create'})); }catch{}; add('sys', pastMem ? '이전 대화를 기억하고 있어요. 안부를 나눠요.' : '첫 통화예요. 밝게 인사드릴게요.'); };
       dc.onmessage = (e)=>{ let ev; try{ ev=JSON.parse(e.data); }catch{ return; } const t=ev.type||'';
@@ -277,7 +348,7 @@
       saveMem((pastMem? pastMem+'\n':'')+ '[최근통화]\n'+ turns.slice(-12).join('\n'));
     }
 
-    function cleanup(){ if(pingTimer){ clearInterval(pingTimer); pingTimer=null; } try{if(dc)dc.close();}catch{} try{if(pc)pc.close();}catch{} try{if(micStream)micStream.getTracks().forEach(t=>t.stop());}catch{} pc=dc=micStream=null; els.start.disabled=false; els.stop.disabled=true; }
+    function cleanup(){ if(pingTimer){ clearInterval(pingTimer); pingTimer=null; } stopVoiceFilter(); try{if(dc)dc.close();}catch{} try{if(pc)pc.close();}catch{} try{if(micStream)micStream.getTracks().forEach(t=>t.stop());}catch{} pc=dc=micStream=null; els.start.disabled=false; els.stop.disabled=true; }
     async function stop(){ setStatus('통화를 정리하고 기억에 저장하는 중...'); cleanup(); await logSession(); await updateMemory(); setStatus('■ 통화가 끝났어요. 수고하셨습니다.'); }
     els.start.onclick = start; els.stop.onclick = ()=>{ ending=true; stop(); };
   </script>
