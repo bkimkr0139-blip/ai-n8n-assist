@@ -22,7 +22,7 @@ n8n으로 만든 **텔레그램 개인 비서 봇**. 텔레그램으로 대화�
 |---|---|
 | `workflows/telegram_bot.json` | 메인. Telegram Trigger → (문서)인덱싱 / (텍스트)RAG검색 → AI Agent → 이메일·대화 분기 |
 | `workflows/send_email_tool.json` | 서브. SMTP 이메일 발송 (Execute Workflow + Webhook 트리거) |
-| `workflows/med_scheduler.json` | 복약 알림. Webhook(/med-config, CORS)로 med.html 일정 수신·저장 + Schedule(5분)로 시각 확인해 텔레그램 알림 발송. 일정 원본은 med.html(localStorage) |
+| `workflows/med_scheduler.json` | 복약 알림. Webhook(/med-config, CORS)로 med.html 일정 수신→**Postgres `med_schedules`** 저장 + Schedule(5분)로 DB 읽어 시각 매칭 시 텔레그램 알림. (staticData 캐시 이슈 회피 위해 DB 사용, 한글 인코딩 정상) |
 
 ---
 

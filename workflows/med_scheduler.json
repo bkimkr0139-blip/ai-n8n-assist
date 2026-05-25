@@ -21,16 +21,36 @@
       }
     },
     {
-      "id": "store",
-      "name": "일정 저장",
+      "id": "prep",
+      "name": "쿼리 준비",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        260,
+        220,
         -160
       ],
       "parameters": {
-        "jsCode": "const inp=$input.first().json;\nconst body=(inp && inp.body) ? inp.body : inp;\nconst chatId=String((body && body.chatId)||'').trim();\nconst schedule=Array.isArray(body && body.schedule)?body.schedule:[];\nconst sd=$getWorkflowStaticData('global');\nsd.schedules=sd.schedules||{};\nif(chatId) sd.schedules[chatId]=schedule;\nreturn [{ json:{ ok:true, chatId, count:schedule.length } }];"
+        "jsCode": "const inp=$input.first().json;\nconst body=(inp&&inp.body)?inp.body:inp;\nconst chatId=String((body&&body.chatId)||'').replace(/'/g,\"''\");\nconst schedule=Array.isArray(body&&body.schedule)?body.schedule:[];\nconst json=JSON.stringify(schedule).replace(/'/g,\"''\");\nconst query=\"INSERT INTO med_schedules (chat_id, schedule) VALUES ('\"+chatId+\"', '\"+json+\"'::jsonb) ON CONFLICT (chat_id) DO UPDATE SET schedule=EXCLUDED.schedule, updated_at=now()\";\nreturn [{ json:{ query, ok:true, chatId, count:schedule.length } }];"
+      }
+    },
+    {
+      "id": "save",
+      "name": "일정 저장(DB)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        -160
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
       }
     },
     {
@@ -40,7 +60,7 @@
       "typeVersion": 1.2,
       "position": [
         0,
-        120
+        140
       ],
       "parameters": {
         "rule": {
@@ -54,16 +74,36 @@
       }
     },
     {
+      "id": "read",
+      "name": "일정 읽기(DB)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        140
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT chat_id, schedule FROM med_schedules"
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
       "id": "find",
       "name": "복용시간 확인",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        260,
-        120
+        440,
+        140
       ],
       "parameters": {
-        "jsCode": "const sd=$getWorkflowStaticData('global');\nconst schedules=sd.schedules||{};\nconst now=new Date(Date.now()+9*3600*1000);\nconst hh=now.getUTCHours();\nconst mm=now.getUTCMinutes();\nconst out=[];\nfor(const chatId of Object.keys(schedules)){\n  for(const e of (schedules[chatId]||[])){\n    if(!e || !e.time) continue;\n    const p=String(e.time).split(':'); const eh=parseInt(p[0],10), em=parseInt(p[1],10);\n    if(eh===hh && em>=mm && em<mm+5){ out.push({ json:{ chatId, med:e.med||'', when:e.when||'', time:e.time } }); }\n  }\n}\nreturn out;"
+        "jsCode": "const rows=$input.all();\nconst now=new Date(Date.now()+9*3600*1000);\nconst hh=now.getUTCHours(), mm=now.getUTCMinutes();\nconst out=[];\nfor(const r of rows){ const j=r.json||{}; const chatId=j.chat_id; let s=j.schedule;\n  if(typeof s==='string'){ try{ s=JSON.parse(s); }catch(e){ s=[]; } }\n  if(!Array.isArray(s)) s=[];\n  for(const e of s){ if(!e||!e.time) continue; const p=String(e.time).split(':'); const eh=parseInt(p[0],10), em=parseInt(p[1],10);\n    if(eh===hh && em>=mm && em<mm+5){ out.push({ json:{ chatId, med:e.med||'', when:e.when||'', time:e.time } }); } } }\nreturn out;"
       }
     },
     {
@@ -72,8 +112,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        520,
-        120
+        660,
+        140
       ],
       "parameters": {
         "resource": "message",
@@ -90,7 +130,7 @@
           "name": "Telegram Bot"
         }
       },
-      "webhookId": "b72dcdc9-e662-4453-9144-487e5ab1267c"
+      "webhookId": "2a070c56-593e-4448-8ac4-f7bde93b659a"
     }
   ],
   "connections": {
@@ -98,7 +138,18 @@
       "main": [
         [
           {
-            "node": "일정 저장",
+            "node": "쿼리 준비",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "쿼리 준비": {
+      "main": [
+        [
+          {
+            "node": "일정 저장(DB)",
             "type": "main",
             "index": 0
           }
@@ -106,6 +157,17 @@
       ]
     },
     "5분마다": {
+      "main": [
+        [
+          {
+            "node": "일정 읽기(DB)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "일정 읽기(DB)": {
       "main": [
         [
           {
