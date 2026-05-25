@@ -192,7 +192,7 @@
         220
       ],
       "parameters": {
-        "jsCode": "const q=($input.first().json.query)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(q.device_id||'');\nconst query=\"SELECT device_id,name,region,voice,env,speed,memo,visits,status FROM care_profiles WHERE device_id='\"+id+\"'\";\nreturn [{ json:{ query } }];"
+        "jsCode": "const q=($input.first().json.query)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(q.device_id||'');\nconst query=\"SELECT device_id,name,region,voice,env,speed,memo,visits,status,block_reason FROM care_profiles WHERE device_id='\"+id+\"'\";\nreturn [{ json:{ query } }];"
       }
     },
     {
@@ -226,7 +226,7 @@
         220
       ],
       "parameters": {
-        "jsCode": "const rows=$input.all();\nconst r=(rows.length&&rows[0].json)?rows[0].json:{};\nconst known=!!(r&&r.device_id);\nreturn [{ json:{ known, name:r.name||'', region:r.region||'', voice:r.voice||'', env:r.env||'', speed:r.speed||'', memo:r.memo||'', visits:r.visits||0, status:r.status||'' } }];"
+        "jsCode": "const rows=$input.all();\nconst r=(rows.length&&rows[0].json)?rows[0].json:{};\nconst known=!!(r&&r.device_id);\nreturn [{ json:{ known, name:r.name||'', region:r.region||'', voice:r.voice||'', env:r.env||'', speed:r.speed||'', memo:r.memo||'', visits:r.visits||0, status:r.status||'', block_reason:r.block_reason||'' } }];"
       }
     },
     {
@@ -500,7 +500,7 @@
         -360
       ],
       "parameters": {
-        "jsCode": "const b=($input.first().json.body)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(b.device_id||'');\nconst query = id ? (\"SELECT status FROM care_profiles WHERE device_id='\"+id+\"'\") : \"SELECT 'pending' AS status WHERE false\";\nreturn [{ json:{ query, device_id:id } }];"
+        "jsCode": "const b=($input.first().json.body)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(b.device_id||'');\nconst query = id ? (\"SELECT status, block_reason FROM care_profiles WHERE device_id='\"+id+\"'\") : \"SELECT 'pending' AS status, '' AS block_reason WHERE false\";\nreturn [{ json:{ query, device_id:id } }];"
       }
     },
     {
@@ -567,7 +567,7 @@
         -440
       ],
       "parameters": {
-        "jsCode": "const st=(($input.first().json&&$input.first().json.status)||'pending');\nconst blocked=st==='blocked';\nreturn [{ json:{ error: blocked?'blocked':'pending', message: blocked?'이 단말기는 관리자에 의해 차단되었습니다.':'관리자 승인 대기 중입니다. 승인 후 이용하실 수 있어요.' } }];"
+        "jsCode": "const j=($input.first().json)||{};\nconst st=j.status||'pending'; const blocked=st==='blocked';\nconst reason=(j.block_reason||'').trim();\nreturn [{ json:{ error: blocked?'blocked':'pending', status:st, reason: reason, message: blocked?('이 단말기는 관리자에 의해 차단되었습니다.'+(reason?(' 사유: '+reason):'')+' 관리자에게 문의해 주세요.'):'관리자 승인 대기 중입니다. 승인 후 이용하실 수 있어요.' } }];"
       }
     },
     {
@@ -599,7 +599,7 @@
         1320
       ],
       "parameters": {
-        "jsCode": "const b=($input.first().json.body)||{};\nconst PASS='CHANGE_ME_ADMIN_PASS';\nif(String(b.pass||'')!==PASS) return [{ json:{ query:\"SELECT 1 WHERE false\", ok:false, auth:false } }];\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(b.device_id||'');\nlet st=String(b.status||'').trim(); if(['approved','blocked','pending'].indexOf(st)<0) st='blocked';\nconst query = id ? (\"INSERT INTO care_profiles (device_id,status,updated_at) VALUES ('\"+id+\"','\"+st+\"',now()) ON CONFLICT (device_id) DO UPDATE SET status='\"+st+\"', updated_at=now()\") : \"SELECT 1 WHERE false\";\nreturn [{ json:{ query, ok:!!id, auth:true, status:st } }];"
+        "jsCode": "const b=($input.first().json.body)||{};\nconst PASS='CHANGE_ME_ADMIN_PASS';\nif(String(b.pass||'')!==PASS) return [{ json:{ query:\"SELECT 1 WHERE false\", ok:false, auth:false } }];\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(b.device_id||'');\nlet st=String(b.status||'').trim(); if(['approved','blocked','pending'].indexOf(st)<0) st='blocked';\nconst reason = st==='blocked' ? esc(String(b.reason||'').slice(0,300)) : '';\nconst query = id ? (\"INSERT INTO care_profiles (device_id,status,block_reason,updated_at) VALUES ('\"+id+\"','\"+st+\"','\"+reason+\"',now()) ON CONFLICT (device_id) DO UPDATE SET status='\"+st+\"', block_reason='\"+reason+\"', updated_at=now()\") : \"SELECT 1 WHERE false\";\nreturn [{ json:{ query, ok:!!id, auth:true, status:st } }];"
       }
     },
     {

@@ -19,8 +19,9 @@ CREATE TABLE IF NOT EXISTS care_profiles (
   speed      text DEFAULT '',
   memo       text DEFAULT '',
   visits     int DEFAULT 0,
-  status     text DEFAULT 'pending',   -- pending(신규,승인대기) | approved | blocked
-  blocked    boolean DEFAULT false,    -- (구버전 호환, status로 대체)
+  status       text DEFAULT 'pending',   -- pending(신규,승인대기) | approved | blocked
+  block_reason text DEFAULT '',          -- 차단 사유(사용자에게 표시)
+  blocked      boolean DEFAULT false,    -- (구버전 호환, status로 대체)
   last_ping  timestamptz,
   first_seen timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()

@@ -125,11 +125,12 @@
     els.worker.onchange = saveProfile; els.region.onchange = saveProfile; els.voice.onchange = saveProfile; els.speed.onchange = saveProfile; els.env.onchange = saveProfile;
     // ===== 신규 단말기 승인 안내 =====
     let approvalPoll=null;
-    function showApproval(state){
+    function showApproval(state, reason){
       const box=els.approval, msg=els.approvalMsg, btn=els.reqApprove;
       if(!box) return;
       if(state==='approved' || state===''){ box.style.display='none'; btn.style.display='none'; els.start.disabled=false; return; }
       box.style.display='block'; els.start.disabled=true; btn.style.display='none';
+      const rsafe=(reason||'').replace(/[<>&]/g,'').trim();
       if(state==='new'){
         msg.innerHTML='🔒 <b>이 돌봄 서비스는 관리자 승인이 필요합니다.</b><br>위 칸에 <b>성함</b>과 <b>지역</b>을 입력하신 뒤, 아래 버튼을 눌러 승인을 요청해 주세요.';
         btn.style.display='block'; setStatus('🔒 관리자 승인이 필요합니다 — 성함·지역 입력 후 승인 요청');
@@ -137,8 +138,8 @@
         msg.innerHTML='⏳ <b>승인 요청을 보냈습니다.</b><br>관리자가 확인하고 <b>승인하면 통화</b>하실 수 있어요. 잠시만 기다려 주세요.<br>급하시면 <b>관리자에게 연락</b>해 승인을 부탁해 주세요.<br><span style="color:#888;font-size:.92rem">승인되면 이 화면이 자동으로 바뀝니다.</span>';
         setStatus('⏳ 관리자 승인 대기 중입니다.');
       } else if(state==='blocked'){
-        msg.innerHTML='⛔ <b>이 단말기는 차단되었습니다.</b><br>이용하시려면 관리자에게 문의해 주세요.';
-        setStatus('⛔ 차단된 단말기입니다.');
+        msg.innerHTML='⛔ <b>이 단말기는 차단되었습니다.</b>'+(rsafe?('<br>📌 사유: <b>'+rsafe+'</b>'):'')+'<br>이용하시려면 위 사유를 확인하시고 <b>관리자에게 문의</b>해 주세요.';
+        setStatus('⛔ 차단됨'+(rsafe?(' — '+rsafe):''));
       }
     }
     async function checkApproval(){
@@ -146,7 +147,7 @@
         const r=await fetch(PROFILE_GET_URL+'?device_id='+encodeURIComponent(DEVICE_ID),{ headers:{ 'ngrok-skip-browser-warning':'true' } });
         if(!r.ok) return; const p=await r.json(); const st=(p&&p.status)||'';
         if(st==='approved'){ showApproval('approved'); setStatus('✅ 승인되었습니다! [통화 시작]을 누르세요.'); if(approvalPoll){clearInterval(approvalPoll);approvalPoll=null;} }
-        else if(st==='blocked'){ showApproval('blocked'); if(approvalPoll){clearInterval(approvalPoll);approvalPoll=null;} }
+        else if(st==='blocked'){ showApproval('blocked', p.block_reason); if(approvalPoll){clearInterval(approvalPoll);approvalPoll=null;} }
       }catch(e){}
     }
     function startApprovalPoll(){ if(approvalPoll) return; approvalPoll=setInterval(checkApproval, 20000); }
@@ -174,7 +175,7 @@
             els.memstate.textContent='📓 이 단말기로 '+(p.visits||0)+'번째 · 이전 기억을 불러왔어요 (같은 분으로 이어갑니다)';
             const st=p.status||'approved';
             if(st==='approved') showApproval('approved');
-            else if(st==='blocked') showApproval('blocked');
+            else if(st==='blocked') showApproval('blocked', p.block_reason);
             else { showApproval('pending'); startApprovalPoll(); }
             saveProfile();   // 알려진 단말기: 최신 정보로 갱신
             return;

@@ -112,6 +112,24 @@
   <div id="dSessions"></div>
 </div></div>
 
+<div id="blockModal" class="modal" hidden><div class="sheet" style="max-width:460px; border-radius:16px">
+  <h3>⛔ 단말기 차단</h3>
+  <div class="sub" id="blockTarget"></div>
+  <div style="font-weight:700;margin:8px 0 6px">차단 사유 (사용자에게 표시됩니다)</div>
+  <select id="reasonSel" style="width:100%;padding:10px;border-radius:8px;background:#0b1220;color:var(--txt);border:1px solid var(--line);font-size:1rem">
+    <option value="허가되지 않은 접속입니다.">허가되지 않은 접속</option>
+    <option value="본인(대상자) 확인이 어렵습니다.">본인(대상자) 확인 불가</option>
+    <option value="돌봄 서비스 대상자가 아닙니다.">서비스 대상자 아님</option>
+    <option value="서비스 오·남용이 확인되었습니다.">서비스 오·남용</option>
+    <option value="__custom__">직접 입력…</option>
+  </select>
+  <input id="reasonText" placeholder="사유를 입력하세요" style="width:100%;margin-top:8px;padding:10px;border-radius:8px;background:#0b1220;color:var(--txt);border:1px solid var(--line);font-size:1rem" />
+  <div class="act" style="margin-top:12px">
+    <button class="mini danger" id="blockConfirm">⛔ 차단하기</button>
+    <button class="ghost" id="blockCancel">취소</button>
+  </div>
+</div></div>
+
 <script>
   const N8N_BASE = 'https://hardware-finalize-faceted.ngrok-free.dev/webhook';
   const ADMIN_URL = N8N_BASE + '/admin-data';
@@ -162,11 +180,12 @@
           '<div><span class="m">통화시간</span> '+dur(d.total_duration)+'</div>'+
           '<div><span class="m">토큰</span> '+num(d.total_tokens)+'</div>'+
           '<div><span class="m">최근접속</span> '+rel(d.last_ping||d.last_at)+'</div>'+
-        '</div>';
+        '</div>'+
+        ((st==='blocked'&&d.block_reason)?('<div style="margin-top:6px;color:#f87171;font-size:.85rem">📌 차단 사유: '+esc(d.block_reason)+'</div>'):'');
       const act=document.createElement('div'); act.className='act';
-      const mk=(label,status,danger)=>{ const b=document.createElement('button'); b.className='mini'+(danger?' danger':''); b.textContent=label; b.onclick=(e)=>{ e.stopPropagation(); decide(d.device_id,status); }; return b; };
-      if(st!=='approved') act.appendChild(mk('✅ 승인','approved',false));
-      if(st!=='blocked') act.appendChild(mk('⛔ 차단','blocked',true));
+      const mk=(label,danger,fn)=>{ const b=document.createElement('button'); b.className='mini'+(danger?' danger':''); b.textContent=label; b.onclick=(e)=>{ e.stopPropagation(); fn(); }; return b; };
+      if(st!=='approved') act.appendChild(mk('✅ 승인',false,()=>decide(d.device_id,'approved')));
+      if(st!=='blocked') act.appendChild(mk('⛔ 차단',true,()=>openBlock(d.device_id, d.name)));
       el.appendChild(act);
       el.onclick = ()=> openDetail(d.device_id);
       box.appendChild(el);
@@ -202,16 +221,29 @@
   $('closeDetail').onclick = ()=> $('detail').hidden=true;
   $('detail').onclick = (e)=>{ if(e.target===$('detail')) $('detail').hidden=true; };
 
-  async function decide(deviceId, status){
-    const pass=getPass(); if(!pass){ showGate(); return; }
-    const label = status==='approved' ? '승인' : '차단';
-    if(!confirm('단말기 '+shortId(deviceId)+' 을(를) '+label+' 처리할까요?')) return;
+  async function sendDecision(deviceId, status, reason){
+    const pass=getPass(); if(!pass){ showGate(); return false; }
     try{
-      const r=await fetch(ADMIN_URL.replace('/admin-data','/care-block'), { method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ pass, device_id:deviceId, status }) });
+      const r=await fetch(ADMIN_URL.replace('/admin-data','/care-block'), { method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ pass, device_id:deviceId, status, reason:reason||'' }) });
       const j=await r.json().catch(()=>({}));
-      if(j&&j.ok){ load(); } else { alert('처리 실패: 관리자 권한이 없거나 오류입니다.'); }
-    }catch(e){ alert('네트워크 오류로 처리하지 못했습니다.'); }
+      if(j&&j.ok){ load(); return true; } else { alert('처리 실패: 관리자 권한이 없거나 오류입니다.'); return false; }
+    }catch(e){ alert('네트워크 오류로 처리하지 못했습니다.'); return false; }
   }
+  function decide(deviceId, status){
+    if(status==='approved'){ if(!confirm('이 단말기를 승인할까요?\n'+shortId(deviceId))) return; sendDecision(deviceId,'approved',''); }
+  }
+  // 차단 사유 선택/입력 모달
+  let blockTargetId=null;
+  function openBlock(deviceId, name){
+    blockTargetId=deviceId;
+    $('blockTarget').textContent=(name||'(이름 미설정)')+' · '+shortId(deviceId);
+    $('reasonSel').selectedIndex=0; $('reasonText').value=$('reasonSel').value;
+    $('blockModal').hidden=false;
+  }
+  $('reasonSel').onchange=()=>{ const v=$('reasonSel').value; if(v==='__custom__'){ $('reasonText').value=''; $('reasonText').focus(); } else { $('reasonText').value=v; } };
+  $('blockCancel').onclick=()=>{ $('blockModal').hidden=true; };
+  $('blockModal').onclick=(e)=>{ if(e.target===$('blockModal')) $('blockModal').hidden=true; };
+  $('blockConfirm').onclick=async ()=>{ const reason=($('reasonText').value||'').trim(); if(!reason){ alert('차단 사유를 입력하세요.'); return; } const ok=await sendDecision(blockTargetId,'blocked',reason); if(ok) $('blockModal').hidden=true; };
 
   async function load(){
     const res = await fetchData();
