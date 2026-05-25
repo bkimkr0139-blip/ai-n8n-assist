@@ -64,6 +64,16 @@
     </div>
   </div>
 
+  <div class="card">
+    <label>👤 대상자(어르신) 관리 — 이 단말기</label>
+    <div class="sub" id="subjState" style="margin:6px 0 10px">확인 중…</div>
+    <div class="row">
+      <button id="resetVoice" class="alt">🎤 대상자 음성 초기화</button>
+      <button id="resetAll" class="stop">🔄 대상자 전체 초기화 (새 대상자)</button>
+    </div>
+    <div class="sub" style="margin-top:10px;margin-bottom:0">· <b>음성 초기화</b>: 다음 통화에서 어르신 목소리를 처음부터 다시 학습합니다.<br>· <b>전체 초기화</b>: 단말기 대상자가 바뀔 때 — 학습된 목소리 + 기억(이전 대화 메모)을 모두 지우고 새 대상자로 시작합니다.</div>
+  </div>
+
   <div id="log"></div>
   <audio id="audio" autoplay></audio>
 
@@ -94,6 +104,32 @@
 
     els.savecfg.onclick = ()=>{ localStorage.setItem(CFG_KEY, els.cfg.value.trim()); setStatus('💾 설정을 저장했습니다. 어르신 통화에 반영됩니다.'); };
     els.clearcfg.onclick = ()=>{ if(confirm('맞춤 설정을 초기화할까요?')){ localStorage.removeItem(CFG_KEY); els.cfg.value=''; setStatus('설정을 초기화했습니다.'); } };
+
+    // ===== 대상자(어르신) 음성/기억 관리 — 단말기 대상자 변경 유연성 =====
+    const N8N_BASE_ADMIN = 'https://hardware-finalize-faceted.ngrok-free.dev/webhook';
+    const DEVICE_ID_ADMIN = localStorage.getItem('care_device_id') || '';
+    function subjStateText(){
+      const el=$('subjState');
+      if(!DEVICE_ID_ADMIN){ el.textContent='이 단말기에는 아직 어르신 통화 기록이 없습니다 (care.html을 먼저 사용하세요).'; return; }
+      let v=null; try{ v=JSON.parse(localStorage.getItem('care_voice_'+DEVICE_ID_ADMIN)||'null'); }catch(e){}
+      const hasMem = !!((localStorage.getItem('care_memory_v1')||'').trim());
+      el.textContent = '단말기 '+DEVICE_ID_ADMIN.slice(0,8)+' · 음성패턴 '+(v&&v.lo? ('기억됨('+Math.round(v.lo)+'~'+Math.round(v.hi)+'Hz)') : '없음')+' · 기억(메모) '+(hasMem?'있음':'없음');
+    }
+    $('resetVoice').onclick = ()=>{
+      if(!DEVICE_ID_ADMIN){ alert('이 단말기에 등록된 대상자가 없습니다.'); return; }
+      if(!confirm('대상자 음성 패턴을 초기화할까요?\n다음 통화에서 어르신 목소리를 처음부터 다시 학습합니다.')) return;
+      try{ localStorage.removeItem('care_voice_'+DEVICE_ID_ADMIN); }catch(e){}
+      subjStateText(); setStatus('🎤 대상자 음성을 초기화했습니다. 다음 통화에서 다시 학습합니다.');
+    };
+    $('resetAll').onclick = async ()=>{
+      if(!DEVICE_ID_ADMIN){ alert('이 단말기에 등록된 대상자가 없습니다.'); return; }
+      if(!confirm('이 단말기의 대상자를 변경합니다.\n학습된 목소리 + 기억(이전 대화 메모)을 모두 지우고 새 대상자로 시작할까요?')) return;
+      try{ localStorage.removeItem('care_voice_'+DEVICE_ID_ADMIN); localStorage.removeItem('care_memory_v1'); }catch(e){}
+      setStatus('🔄 서버 기억을 초기화하는 중...');
+      try{ await fetch(N8N_BASE_ADMIN+'/care-reset', { method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body: JSON.stringify({ device_id: DEVICE_ID_ADMIN }) }); }catch(e){}
+      subjStateText(); setStatus('✅ 대상자를 초기화했습니다. 다음 통화부터 새 대상자로 목소리·기억을 새로 시작합니다.');
+    };
+    subjStateText();
 
     const END_WORDS = ['저장','적용','끝','그만','마칠','마무리','종료','됐어'];
     function isEndIntent(t){ return END_WORDS.some(w => t.indexOf(w) >= 0); }

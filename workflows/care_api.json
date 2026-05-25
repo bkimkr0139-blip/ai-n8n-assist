@@ -423,6 +423,71 @@
       "parameters": {
         "jsCode": "return [{ json:{ ok:true } }];"
       }
+    },
+    {
+      "id": "5f92ae7a-7a27-460d-9b7c-a816f135fcb8",
+      "name": "초기화요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        1100
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "care-reset",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "98311a66-22e1-4c7a-a987-9b66ac22c3b2"
+    },
+    {
+      "id": "a1f1754e-cb5b-4e53-a71c-17f2b8458d9b",
+      "name": "초기화빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        1100
+      ],
+      "parameters": {
+        "jsCode": "const b=($input.first().json.body)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(b.device_id||'');\nconst query = id ? (\"UPDATE care_profiles SET memo='', visits=0, updated_at=now() WHERE device_id='\"+id+\"'\") : \"SELECT 1 WHERE false\";\nreturn [{json:{query}}];"
+      }
+    },
+    {
+      "id": "847797c6-3702-45aa-9a8c-a81d9202cee5",
+      "name": "초기화실행",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        1100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "7c466e1f-dd0e-4a6a-bb1b-3a1c3b21ebe9",
+      "name": "초기화응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1100
+      ],
+      "parameters": {
+        "jsCode": "return [{ json:{ ok:true } }];"
+      }
     }
   ],
   "connections": {
@@ -629,6 +694,39 @@
         [
           {
             "node": "핑응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "초기화요청": {
+      "main": [
+        [
+          {
+            "node": "초기화빌드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "초기화빌드": {
+      "main": [
+        [
+          {
+            "node": "초기화실행",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "초기화실행": {
+      "main": [
+        [
+          {
+            "node": "초기화응답",
             "type": "main",
             "index": 0
           }

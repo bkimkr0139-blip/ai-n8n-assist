@@ -241,7 +241,7 @@
     // ※ 진짜 화자 생체인식이 아니라 피치 기반 근사 — 음역이 비슷한 목소리는 구분 못 할 수 있음.
     const VOICE_KEY = 'care_voice_' + DEVICE_ID;
     let audioCtx=null, vfSource=null, vfAnalyser=null, vfGate=null, vfDest=null, vfTimer=null, vfBuf=null;
-    let voiceLo=0, voiceHi=0, learnSamples=[], learnUntil=0, gateOpen=true;
+    let voiceLo=0, voiceHi=0, learnSamples=[], learnUntil=0, learnStart=0, gateOpen=true;
     function loadVoice(){ try{ const v=JSON.parse(localStorage.getItem(VOICE_KEY)||'null'); if(v&&v.lo&&v.hi){ voiceLo=v.lo; voiceHi=v.hi; } }catch(e){} }
     function saveVoice(){ try{ localStorage.setItem(VOICE_KEY, JSON.stringify({lo:voiceLo,hi:voiceHi})); }catch(e){} }
     function clearVoice(){ voiceLo=0; voiceHi=0; learnSamples=[]; try{ localStorage.removeItem(VOICE_KEY); }catch(e){} }
@@ -258,12 +258,19 @@
       for(let off=minP; off<=maxP; off++){ let s=0; for(let i=0;i<buf.length-off;i++){ s+=buf[i]*buf[i+off]; } if(s>best){ best=s; bestOff=off; } }
       if(bestOff<=0) return 0; const f0=sr/bestOff; return (f0>=70&&f0<=400)?f0:0;
     }
-    function lockProfile(){
-      if(learnSamples.length<5) return;
+    // 처음 학습된 목소리를 이 단말기의 "기본 패턴"으로 확정. 중앙값 근처 샘플만 써서
+    // 학습 중 섞인 TV/잡음 이상치를 버리고, 일관성이 부족하면 더 모은다(force면 강제 확정).
+    function lockProfile(force){
+      if(learnSamples.length<6 && !force) return false;
       const s=learnSamples.slice().sort((a,b)=>a-b);
-      voiceLo=s[Math.floor(s.length*0.15)]; voiceHi=s[Math.floor(s.length*0.85)];
+      const med=s[Math.floor(s.length/2)]||0;
+      let core=s.filter(x=> med && x>=med*0.65 && x<=med*1.35); // 지배적(어르신) 음역만
+      if(core.length<5){ if(!force) return false; core=s; }
+      voiceLo=core[Math.floor(core.length*0.1)]; voiceHi=core[core.length-1-Math.floor(core.length*0.1)];
+      if(!voiceLo||!voiceHi) return false;
       if(voiceHi-voiceLo<40){ const m=(voiceLo+voiceHi)/2; voiceLo=m-25; voiceHi=m+25; }
-      saveVoice(); vfStateText(); add('sys','🎙️ 어르신 목소리를 학습했어요. 이제 TV·다른 소리는 걸러냅니다.');
+      saveVoice(); vfStateText(); add('sys','🎙️ 어르신 목소리를 학습했어요(이 단말기 기본 패턴으로 저장). 이제 TV·다른 소리는 걸러냅니다.');
+      return true;
     }
     function startVoiceFilter(){
       try{
@@ -275,7 +282,7 @@
         vfDest = audioCtx.createMediaStreamDestination();
         vfSource.connect(vfAnalyser);                       // 분석용 탭
         vfSource.connect(vfGate); vfGate.connect(vfDest);   // 게이트 경로(OpenAI로 전송)
-        learnSamples=[]; gateOpen=true; learnUntil = voiceLo? 0 : (Date.now()+2500);
+        learnSamples=[]; gateOpen=true; learnStart=Date.now(); learnUntil = voiceLo? 0 : (Date.now()+2500);
         vfTimer = setInterval(()=>{
           if(!audioCtx) return;
           vfAnalyser.getFloatTimeDomainData(vfBuf);
@@ -283,7 +290,7 @@
           let pass=true;
           if(els.vfilter.checked){
             if(f0>0){
-              if(!voiceLo){ learnSamples.push(f0); if(Date.now()>learnUntil && learnSamples.length>=8) lockProfile(); }
+              if(!voiceLo){ learnSamples.push(f0); if(Date.now()>learnUntil && learnSamples.length>=8){ if(!lockProfile(Date.now()-learnStart>8000)) learnUntil=Date.now()+1000; } }
               else { const tol=Math.max(25,(voiceHi-voiceLo)*0.35); pass=(f0>=voiceLo-tol && f0<=voiceHi+tol); }
             } else { pass=gateOpen; }   // 무음/자음 구간은 직전 상태 유지(말 끊김 방지)
           }
