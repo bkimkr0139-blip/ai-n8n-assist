@@ -7,6 +7,7 @@
 <style>
   :root{ --bg:#0f172a; --card:#1e293b; --card2:#243449; --line:#334155; --txt:#e2e8f0; --mut:#94a3b8; --on:#22c55e; --off:#64748b; --accent:#38bdf8; }
   *{ box-sizing:border-box; }
+  [hidden]{ display:none !important; }  /* .modal의 display:flex가 hidden을 덮어쓰지 않도록 — 상세 팝업/게이트 토글 보장 */
   body{ margin:0; background:var(--bg); color:var(--txt); font-family:-apple-system,'Segoe UI',Roboto,'Malgun Gothic',sans-serif; }
   header{ padding:14px 16px; background:#0b1220; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; flex-wrap:wrap; position:sticky; top:0; z-index:5; }
   header h1{ font-size:1.05rem; margin:0; }
