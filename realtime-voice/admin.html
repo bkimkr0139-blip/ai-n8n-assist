@@ -66,7 +66,18 @@
   .ses .h{ display:flex; gap:10px; font-size:.82rem; color:var(--mut); flex-wrap:wrap; }
   .ses pre{ white-space:pre-wrap; font-size:.85rem; margin:8px 0 0; line-height:1.5; max-height:240px; overflow:auto; }
   .closebar{ display:flex; justify-content:flex-end; margin-bottom:8px; }
-  @media (max-width:760px){ .summary{ grid-template-columns:repeat(2,1fr); } }
+  .tab{ background:transparent; color:var(--mut); border:1px solid var(--line); }
+  .tab.active{ background:var(--accent); color:#04263a; border-color:var(--accent); }
+  .ctrl{ display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+  .ctrl label{ display:flex; align-items:center; gap:6px; font-weight:600; font-size:.9rem; }
+  .ctrl select{ background:#0b1220; color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:.95rem; }
+  .barrow{ display:flex; align-items:center; gap:10px; margin:5px 0; }
+  .barlabel{ width:120px; flex:0 0 auto; font-size:.85rem; color:var(--mut); text-align:right; }
+  .bartrack{ flex:1; background:#0b1220; border-radius:6px; height:22px; overflow:hidden; border:1px solid var(--line); }
+  .bar{ height:100%; background:linear-gradient(90deg,#38bdf8,#22c55e); border-radius:6px 0 0 6px; min-width:2px; transition:width .3s; }
+  .barval{ width:96px; flex:0 0 auto; font-size:.85rem; font-weight:700; }
+  .tbl tr.click{ cursor:pointer; } .tbl tr.click:hover td{ background:var(--card2); }
+  @media (max-width:760px){ .summary{ grid-template-columns:repeat(2,1fr); } .barlabel{ width:78px; } .barval{ width:70px; } }
 </style>
 </head>
 <body>
@@ -74,6 +85,8 @@
   <h1>🩺 돌봄 통합 관리자</h1>
   <span class="pill" id="clock">—</span>
   <div class="sp"></div>
+  <button class="tab active" id="tabMon" hidden>📋 모니터링</button>
+  <button class="tab" id="tabAna" hidden>📊 사용 분석</button>
   <span class="pill" id="autostate">자동새로고침 ON</span>
   <button class="ghost" id="refresh">새로고침</button>
   <button class="ghost" id="logout" hidden>로그아웃</button>
@@ -112,6 +125,30 @@
       <table class="tbl"><thead><tr><th>시각</th><th>단말기/담당</th><th>통화시간</th><th>대화수</th><th>토큰</th></tr></thead>
       <tbody id="sessions"></tbody></table>
     </div>
+  </div>
+
+  <div id="analytics" hidden>
+    <div class="card">
+      <div class="ctrl">
+        <label>기간 <select id="anPeriod"><option value="day">일별</option><option value="week">주별</option><option value="month" selected>월별</option><option value="quarter">분기별</option><option value="year">년별</option></select></label>
+        <label>지표 <select id="anMetric"><option value="sessions">통화수</option><option value="duration">통화시간</option><option value="tokens">토큰</option></select></label>
+        <label>단말기 <select id="anDevice"><option value="">전체</option></select></label>
+        <label>지역 <select id="anRegion"><option value="">전체</option></select></label>
+      </div>
+    </div>
+    <div class="summary" id="anSummary">
+      <div class="stat"><div class="k">통화수</div><div class="v" id="a-ses">0</div></div>
+      <div class="stat"><div class="k">통화시간</div><div class="v" id="a-dur">0</div></div>
+      <div class="stat"><div class="k">토큰</div><div class="v" id="a-tok">0</div></div>
+      <div class="stat"><div class="k">단말기수</div><div class="v" id="a-dev">0</div></div>
+    </div>
+    <h2 class="sec" id="anPTitle">기간별 추이</h2>
+    <div class="card" id="anByPeriod"></div>
+    <h2 class="sec">지역별</h2>
+    <div class="card" id="anByRegion"></div>
+    <h2 class="sec">단말기별 (행을 누르면 그 단말기로 분석)</h2>
+    <div class="wrap"><table class="tbl"><thead><tr><th>단말기</th><th>지역</th><th>통화수</th><th>통화시간</th><th>토큰</th><th>최근</th></tr></thead>
+    <tbody id="anByDevice"></tbody></table></div>
   </div>
 </main>
 
@@ -287,8 +324,15 @@
     DATA = res; render(); $('clock').textContent='업데이트 '+new Date().toLocaleTimeString('ko-KR');
   }
 
-  function showDash(){ $('gate').hidden=true; $('dash').hidden=false; $('logout').hidden=false; load(); startAuto(); }
-  function showGate(err){ $('dash').hidden=true; $('gate').hidden=false; $('logout').hidden=true; if(err) $('gateErr').textContent=err; stopAuto(); }
+  function setTab(which){
+    const mon = which!=='ana';
+    $('dash').hidden=!mon; $('analytics').hidden=mon;
+    $('tabMon').classList.toggle('active', mon); $('tabAna').classList.toggle('active', !mon);
+    if(!mon) loadAnalytics();
+  }
+  $('tabMon').onclick=()=>setTab('mon'); $('tabAna').onclick=()=>setTab('ana');
+  function showDash(){ $('gate').hidden=true; $('logout').hidden=false; $('tabMon').hidden=false; $('tabAna').hidden=false; setTab('mon'); load(); startAuto(); }
+  function showGate(err){ $('dash').hidden=true; $('analytics').hidden=true; $('gate').hidden=false; $('logout').hidden=true; $('tabMon').hidden=true; $('tabAna').hidden=true; if(err) $('gateErr').textContent=err; stopAuto(); }
   function startAuto(){ stopAuto(); if(auto) timer=setInterval(load, 15000); }
   function stopAuto(){ if(timer){ clearInterval(timer); timer=null; } }
 
@@ -305,6 +349,64 @@
   $('refresh').onclick = load;
   $('logout').onclick = ()=>{ try{localStorage.removeItem('care_admin_pass');}catch(e){} showGate(); };
   $('autostate').onclick = ()=>{ auto=!auto; $('autostate').textContent='자동새로고침 '+(auto?'ON':'OFF'); startAuto(); };
+
+  // ===== 사용 분석 (다차원) =====
+  const anState={ period:'month', metric:'sessions', device_id:'', region:'' };
+  let anData={ byPeriod:[], byRegion:[], byDevice:[] };
+  function populateAnFilters(){
+    const devs=(DATA.devices||[]);
+    const dsel=$('anDevice'), dcur=dsel.value;
+    dsel.innerHTML='<option value="">전체 단말기</option>'+devs.map(d=>'<option value="'+esc(d.device_id)+'">'+(esc(d.name)||'(이름없음)')+' ('+(esc(d.region)||'?')+')</option>').join('');
+    dsel.value=dcur;
+    const rsel=$('anRegion'), rcur=rsel.value;
+    const regions=[...new Set(devs.map(d=>(d.region||'').trim()).filter(Boolean))];
+    rsel.innerHTML='<option value="">전체 지역</option>'+regions.map(r=>'<option value="'+esc(r)+'">'+esc(r)+'</option>').join('');
+    rsel.value=rcur;
+  }
+  function metricVal(d){ return anState.metric==='duration'?(+d.duration||0): anState.metric==='tokens'?(+d.tokens||0):(+d.sessions||0); }
+  function metricFmt(v){ return anState.metric==='duration'?dur(v): anState.metric==='tokens'?num(v): num(v)+'회'; }
+  function fmtBucket(b){ const p=anState.period; if(!b) return b; const y=b.slice(0,4), mo=+b.slice(5,7); if(p==='year') return y+'년'; if(p==='quarter') return y+' '+(Math.floor((mo-1)/3)+1)+'분기'; if(p==='month') return b.slice(0,7); if(p==='week') return b.slice(5)+' 주'; return b.slice(5); }
+  function bars(containerId, rows, labelFn){
+    const el=$(containerId); el.innerHTML='';
+    if(!rows||!rows.length){ el.innerHTML='<div class="empty">데이터가 없습니다.</div>'; return; }
+    const max=Math.max(1,...rows.map(metricVal));
+    rows.forEach(r=>{ const v=metricVal(r); const d=document.createElement('div'); d.className='barrow';
+      d.innerHTML='<span class="barlabel">'+esc(labelFn(r))+'</span><div class="bartrack"><div class="bar" style="width:'+(v/max*100).toFixed(1)+'%"></div></div><span class="barval">'+metricFmt(v)+'</span>';
+      el.appendChild(d); });
+  }
+  function renderAnalytics(j){
+    anData=j||anData;
+    const dev=anData.byDevice||[];
+    $('a-ses').textContent=num(dev.reduce((a,d)=>a+(+d.sessions||0),0));
+    $('a-dur').textContent=dur(dev.reduce((a,d)=>a+(+d.duration||0),0));
+    $('a-tok').textContent=num(dev.reduce((a,d)=>a+(+d.tokens||0),0));
+    $('a-dev').textContent=num(dev.length);
+    const pl={day:'일',week:'주',month:'월',quarter:'분기',year:'년'}[anState.period]||'';
+    const ml={sessions:'통화수',duration:'통화시간',tokens:'토큰'}[anState.metric]||'';
+    $('anPTitle').textContent=pl+'별 추이 — '+ml;
+    bars('anByPeriod', anData.byPeriod, r=>fmtBucket(r.bucket));
+    bars('anByRegion', anData.byRegion, r=>r.region||'(미지정)');
+    const tb=$('anByDevice'); tb.innerHTML='';
+    if(!dev.length){ tb.innerHTML='<tr><td colspan="6" class="empty">데이터가 없습니다.</td></tr>'; }
+    dev.forEach(d=>{ const tr=document.createElement('tr'); tr.className='click';
+      tr.innerHTML='<td>'+(esc(d.name)||shortId(d.device_id))+'</td><td>'+esc(d.region||'')+'</td><td>'+num(d.sessions)+'회</td><td>'+dur(d.duration)+'</td><td>'+num(d.tokens)+'</td><td>'+esc(d.last||'-')+'</td>';
+      tr.onclick=()=>{ $('anDevice').value=d.device_id; loadAnalytics(); };
+      tb.appendChild(tr); });
+  }
+  async function loadAnalytics(){
+    const pass=getPass(); if(!pass){ showGate(); return; }
+    populateAnFilters();
+    anState.period=$('anPeriod').value; anState.metric=$('anMetric').value; anState.device_id=$('anDevice').value; anState.region=$('anRegion').value;
+    const qs='pass='+encodeURIComponent(pass)+'&period='+encodeURIComponent(anState.period)+(anState.device_id?'&device_id='+encodeURIComponent(anState.device_id):'')+(anState.region?'&region='+encodeURIComponent(anState.region):'');
+    try{
+      const r=await fetch(N8N_BASE+'/admin-analytics?'+qs,{ headers:{ 'ngrok-skip-browser-warning':'true' } });
+      const j=await r.json().catch(()=>({}));
+      if(j&&j.error){ if(JSON.stringify(j).indexOf('unauthorized')>=0) showGate('패스코드가 올바르지 않습니다.'); return; }
+      renderAnalytics(j);
+    }catch(e){}
+  }
+  $('anPeriod').onchange=loadAnalytics; $('anDevice').onchange=loadAnalytics; $('anRegion').onchange=loadAnalytics;
+  $('anMetric').onchange=()=>{ anState.metric=$('anMetric').value; renderAnalytics(anData); };
 
   // 시작: 저장된 패스코드 있으면 바로 시도
   if(getPass()) showDash(); else showGate();
