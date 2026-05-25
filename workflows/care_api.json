@@ -1,0 +1,107 @@
+{
+  "name": "care_api",
+  "nodes": [
+    {
+      "id": "tokwh",
+      "name": "토큰요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "realtime-token",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "realtime-token",
+        "responseMode": "lastNode",
+        "options": { "allowedOrigins": "*" }
+      }
+    },
+    {
+      "id": "mint",
+      "name": "토큰발급",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/realtime/client_secrets",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ session: { type: 'realtime', model: 'gpt-realtime' } }) }}",
+        "options": {}
+      },
+      "credentials": { "openAiApi": { "id": "", "name": "OpenAI API" } }
+    },
+    {
+      "id": "tokout",
+      "name": "토큰응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0],
+      "parameters": {
+        "jsCode": "const d=$input.first().json||{};\nreturn [{ json:{ value: d.value||'', expires_at: d.expires_at||0 } }];"
+      }
+    },
+    {
+      "id": "sumwh",
+      "name": "요약요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 220],
+      "webhookId": "care-summary",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "care-summary",
+        "responseMode": "lastNode",
+        "options": { "allowedOrigins": "*" }
+      }
+    },
+    {
+      "id": "sumbuild",
+      "name": "요약프롬프트",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 220],
+      "parameters": {
+        "jsCode": "const b=($input.first().json.body)||{};\nconst past=(b.past||'(없음)').toString();\nconst convo=(b.convo||'').toString();\nconst prompt='다음은 돌봄 도우미와 어르신의 통화 내용입니다. 다음 통화 때 참고할 \"어르신 메모\"를 한국어로 갱신해 주세요. 기존 메모와 이번 통화를 합쳐서, 어르신 호칭/성함, 건강상태와 통증, 기분, 가족/일상, 걱정거리, 약속한 것, 다음에 여쭤볼 것을 간결한 불릿으로 12줄 이내로 정리하세요. 메모만 출력하세요.\\n\\n[기존 메모]\\n'+past+'\\n\\n[이번 통화]\\n'+convo;\nreturn [{ json:{ prompt } }];"
+      }
+    },
+    {
+      "id": "chat",
+      "name": "요약호출",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 220],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.3, messages: [ { role: 'user', content: $json.prompt } ] }) }}",
+        "options": {}
+      },
+      "credentials": { "openAiApi": { "id": "", "name": "OpenAI API" } }
+    },
+    {
+      "id": "sumout",
+      "name": "요약응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 220],
+      "parameters": {
+        "jsCode": "const d=$input.first().json||{};\nconst memo=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'';\nreturn [{ json:{ memo: memo.trim() } }];"
+      }
+    }
+  ],
+  "connections": {
+    "토큰요청": { "main": [[{ "node": "토큰발급", "type": "main", "index": 0 }]] },
+    "토큰발급": { "main": [[{ "node": "토큰응답", "type": "main", "index": 0 }]] },
+    "요약요청": { "main": [[{ "node": "요약프롬프트", "type": "main", "index": 0 }]] },
+    "요약프롬프트": { "main": [[{ "node": "요약호출", "type": "main", "index": 0 }]] },
+    "요약호출": { "main": [[{ "node": "요약응답", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

@@ -35,8 +35,7 @@
   <div class="sub">밝고 친절한 생활지원사와 음성으로 안부를 나눠요. 버튼을 누르고 편하게 말씀하세요.</div>
 
   <div class="card">
-    <input id="key" type="password" placeholder="OpenAI API Key (sk-...) — 처음 한 번만" autocomplete="off" />
-    <div class="row" style="margin-top:10px">
+    <div class="row" style="margin-top:2px">
       <label>담당 생활지원사</label>
       <input id="worker" style="flex:1;min-width:120px" placeholder="예: 김지원" />
       <label>거주지역</label>
@@ -57,7 +56,7 @@
     <button id="stop" class="bigbtn stop" disabled>■ 통화 끝내기</button>
   </div>
 
-  <div id="status">대기 중 — API 키 입력 후 [통화 시작]</div>
+  <div id="status">대기 중 — [통화 시작]을 누르세요</div>
 
   <div class="card">
     <div class="memrow"><span id="memstate">📓 이전 기록: 확인 중…</span><button id="clearmem" class="small">기억 지우기</button></div>
@@ -70,6 +69,10 @@
   <script>
     const MODEL = 'gpt-realtime';
     const CALLS_URL = 'https://api.openai.com/v1/realtime/calls';
+    // 키는 브라우저에 두지 않습니다. n8n 서버가 단기 토큰 발급/기억 요약/뉴스를 담당합니다.
+    const N8N_BASE = 'https://hardware-finalize-faceted.ngrok-free.dev/webhook';
+    const TOKEN_URL = N8N_BASE + '/realtime-token';
+    const SUMMARY_URL = N8N_BASE + '/care-summary';
     const MEM_KEY = 'care_memory_v1';
     const CFG_KEY = 'care_config';
     const REGION_KEY = 'care_region';
@@ -89,10 +92,9 @@
     const WORKER_KEY = 'care_worker';
     const PURPOSE = (new URLSearchParams(location.search).get('purpose') || new URLSearchParams(location.search).get('p') || '').trim();
     const $ = (id) => document.getElementById(id);
-    const els = { key:$('key'), worker:$('worker'), region:$('region'), voice:$('voice'), speed:$('speed'), env:$('env'), start:$('start'), stop:$('stop'), status:$('status'),
+    const els = { worker:$('worker'), region:$('region'), voice:$('voice'), speed:$('speed'), env:$('env'), start:$('start'), stop:$('stop'), status:$('status'),
                   log:$('log'), audio:$('audio'), memstate:$('memstate'), memtext:$('memtext'), clearmem:$('clearmem') };
     const ENV = { quiet:{nr:'near_field',th:0.45}, normal:{nr:'far_field',th:0.55}, noisy:{nr:'far_field',th:0.72} };
-    els.key.value = localStorage.getItem('oai_key') || '';
     els.env.value = localStorage.getItem('care_env') || 'normal';
     els.env.onchange = ()=> localStorage.setItem('care_env', els.env.value);
     els.worker.value = localStorage.getItem(WORKER_KEY) || '';
@@ -134,7 +136,7 @@
       description:'특정 지역의 현재 날씨와 오늘 예보를 가져온다. 어르신이 지역을 말하지 않으면 location을 비워두면 거주지역으로 조회한다. 이 도구를 호출하기 직전에 먼저 "네, 잠시만요. 찾아볼게요"라고 짧게 말할 것.',
       parameters:{ type:'object', properties:{ location:{ type:'string', description:'도시명. 가능하면 영문(예: Seoul, Busan). 어르신 거주지역이면 비워둠.' } }, required:[] } }; }
     // 뉴스는 n8n 서버가 RSS를 가져와 CORS로 응답(브라우저 프록시는 불안정해서 서버 경유).
-    const NEWS_API='https://hardware-finalize-faceted.ngrok-free.dev/webhook/news';
+    const NEWS_API = N8N_BASE + '/news';
     async function getNews(topic){
       try{
         const url=NEWS_API+((topic&&topic.trim())?('?topic='+encodeURIComponent(topic.trim())):'');
@@ -189,10 +191,13 @@
     }
 
     async function start(){
-      const key = els.key.value.trim();
-      if(!key){ alert('OpenAI API Key를 입력해 주세요.'); return; }
-      localStorage.setItem('oai_key', key); localStorage.setItem(REGION_KEY, (els.region.value||'서울').trim());
+      localStorage.setItem(REGION_KEY, (els.region.value||'서울').trim());
       els.start.disabled = true; turns = []; endRequested=false; ending=false;
+      // 서버(n8n)에서 단기 접속 토큰 발급 — API 키는 서버에만 있고 브라우저로 내려오지 않음
+      let token='';
+      try { setStatus('🔑 연결 준비 중...'); const tr=await fetch(TOKEN_URL,{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:'{}' }); if(tr.ok){ const tj=await tr.json(); token=(tj&&tj.value)||''; } }
+      catch(e){}
+      if(!token){ setStatus('❌ 연결 토큰을 받지 못했어요. 잠시 후 다시 시도해 주세요.'); els.start.disabled=false; return; }
       try { setStatus('🎤 마이크 권한을 허용해 주세요...'); micStream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
       catch(e){ setStatus('❌ 마이크 권한이 거부되었습니다.'); els.start.disabled=false; return; }
       pc = new RTCPeerConnection();
@@ -212,28 +217,26 @@
       try{
         const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
         setStatus('연결 중입니다...');
-        const resp = await fetch(CALLS_URL+'?model='+encodeURIComponent(MODEL), { method:'POST', body:offer.sdp, headers:{ 'Authorization':'Bearer '+key, 'Content-Type':'application/sdp' } });
+        const resp = await fetch(CALLS_URL+'?model='+encodeURIComponent(MODEL), { method:'POST', body:offer.sdp, headers:{ 'Authorization':'Bearer '+token, 'Content-Type':'application/sdp' } });
         if(!resp.ok){ const b=await resp.text().catch(()=> ''); setStatus('❌ 연결 실패 ('+resp.status+'): '+b.slice(0,400)); cleanup(); return; }
         await pc.setRemoteDescription({ type:'answer', sdp: await resp.text() });
         els.stop.disabled = false;
       } catch(err){ setStatus('❌ 오류: '+(err&&err.message?err.message:err)); cleanup(); }
     }
 
-    async function updateMemory(key){
+    async function updateMemory(){
       if(turns.length < 2) return;
       const convo = turns.join('\n');
-      const prompt = '다음은 돌봄 도우미와 어르신의 통화 내용입니다. 다음 통화 때 참고할 "어르신 메모"를 한국어로 갱신해 주세요. '+
-        '기존 메모와 이번 통화를 합쳐서, 어르신 호칭/성함, 건강상태와 통증, 기분, 가족/일상, 걱정거리, 약속한 것, 다음에 여쭤볼 것을 간결한 불릿으로 12줄 이내로 정리하세요. 메모만 출력하세요.\n\n[기존 메모]\n'+(pastMem||'(없음)')+'\n\n[이번 통화]\n'+convo;
       try{
-        const r = await fetch('https://api.openai.com/v1/chat/completions', { method:'POST', headers:{ 'Authorization':'Bearer '+key, 'Content-Type':'application/json' },
-          body: JSON.stringify({ model:'gpt-4o-mini', temperature:0.3, messages:[{role:'user', content:prompt}] }) });
-        if(r.ok){ const d=await r.json(); const m=d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content; if(m){ saveMem(m.trim()); add('sys','📓 이번 대화를 기억에 저장했어요.'); return; } }
+        const r = await fetch(SUMMARY_URL, { method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' },
+          body: JSON.stringify({ past: pastMem||'(없음)', convo }) });
+        if(r.ok){ const d=await r.json(); const m=d&&d.memo; if(m){ saveMem(m.trim()); add('sys','📓 이번 대화를 기억에 저장했어요.'); return; } }
       }catch{}
       saveMem((pastMem? pastMem+'\n':'')+ '[최근통화]\n'+ turns.slice(-12).join('\n'));
     }
 
     function cleanup(){ try{if(dc)dc.close();}catch{} try{if(pc)pc.close();}catch{} try{if(micStream)micStream.getTracks().forEach(t=>t.stop());}catch{} pc=dc=micStream=null; els.start.disabled=false; els.stop.disabled=true; }
-    async function stop(){ const key=els.key.value.trim(); setStatus('통화를 정리하고 기억에 저장하는 중...'); cleanup(); await updateMemory(key); setStatus('■ 통화가 끝났어요. 수고하셨습니다.'); }
+    async function stop(){ setStatus('통화를 정리하고 기억에 저장하는 중...'); cleanup(); await updateMemory(); setStatus('■ 통화가 끝났어요. 수고하셨습니다.'); }
     els.start.onclick = start; els.stop.onclick = ()=>{ ending=true; stop(); };
   </script>
 </body>
