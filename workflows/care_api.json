@@ -695,6 +695,72 @@
           "name": "Telegram Bot"
         }
       }
+    },
+    {
+      "id": "30e1cd56-98b9-43ff-b3e1-bbcf46f5ac12",
+      "name": "삭제요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        1540
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "care-delete",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "2e5b6cd5-8186-4388-b03f-b1b37e4f0d55"
+    },
+    {
+      "id": "5777dad0-5786-4404-9313-e4eab3b23c76",
+      "name": "삭제빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        1540
+      ],
+      "parameters": {
+        "jsCode": "const b=($input.first().json.body)||{};\nconst PASS='CHANGE_ME_ADMIN_PASS';\nif(String(b.pass||'')!==PASS) return [{ json:{ query:\"SELECT 1 WHERE false\", ok:false, auth:false, n:0 } }];\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nlet ids=Array.isArray(b.device_ids)?b.device_ids:[];\nids=ids.map(x=>esc(x)).filter(Boolean);\nif(!ids.length) return [{ json:{ query:\"SELECT 1 WHERE false\", ok:false, auth:true, n:0 } }];\nconst inlist=ids.map(x=>\"'\"+x+\"'\").join(',');\nconst query=\"DELETE FROM care_sessions WHERE device_id IN (\"+inlist+\"); DELETE FROM care_profiles WHERE device_id IN (\"+inlist+\")\";\nreturn [{ json:{ query, ok:true, auth:true, n:ids.length } }];"
+      }
+    },
+    {
+      "id": "6323e8d4-c9b3-4022-bd61-a50ebb1ac3b1",
+      "name": "삭제실행",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        1540
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "e0e67c79-2dfb-4749-8ee3-dc60587c94ae",
+      "name": "삭제응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1540
+      ],
+      "parameters": {
+        "jsCode": "let r={ok:false,n:0,auth:false}; try{ const j=$('삭제빌드').first().json; r.ok=!!j.ok; r.n=j.n||0; r.auth=!!j.auth; }catch(e){}\nreturn [{ json:r }];"
+      }
     }
   ],
   "connections": {
@@ -1036,6 +1102,39 @@
         [
           {
             "node": "저장응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "삭제요청": {
+      "main": [
+        [
+          {
+            "node": "삭제빌드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "삭제빌드": {
+      "main": [
+        [
+          {
+            "node": "삭제실행",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "삭제실행": {
+      "main": [
+        [
+          {
+            "node": "삭제응답",
             "type": "main",
             "index": 0
           }

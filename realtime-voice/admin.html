@@ -44,6 +44,12 @@
   .act{ display:flex; gap:8px; margin-top:10px; }
   .act .mini{ font-size:.82rem; font-weight:700; padding:6px 12px; border-radius:8px; background:#22c55e; color:#04261a; }
   .act .mini.danger{ background:#f87171; color:#2a0606; }
+  .bulk{ display:flex; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+  .bulk label{ display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; }
+  .bulk .m2{ color:var(--mut); font-size:.85rem; }
+  .sel{ width:18px; height:18px; margin-right:6px; flex:0 0 auto; vertical-align:middle; cursor:pointer; }
+  .bulk .mini{ font-size:.85rem; font-weight:700; padding:7px 13px; border-radius:8px; background:#f87171; color:#2a0606; border:0; }
+  .bulk .ghost{ font-size:.85rem; }
   /* sessions table */
   .tbl{ width:100%; border-collapse:collapse; font-size:.86rem; background:var(--card); border-radius:12px; overflow:hidden; }
   .tbl th,.tbl td{ padding:9px 11px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
@@ -91,6 +97,13 @@
     </div>
 
     <h2 class="sec">단말기별 접속 상태 (카드를 누르면 상세)</h2>
+    <div class="bulk">
+      <label><input type="checkbox" id="selAll" /> 전체 선택</label>
+      <span class="m2" id="selCount">0개 선택</span>
+      <span style="flex:1"></span>
+      <button class="mini" id="delSel">🗑 선택 삭제</button>
+      <button class="ghost" id="delAll">전체 삭제</button>
+    </div>
     <div class="devs" id="devices"></div>
     <div class="empty" id="devEmpty" hidden>아직 등록된 단말기가 없습니다.<br>어르신 통화 화면(care.html)을 한 번 열면 그 단말기가 여기에 표시되고, 통화하면 🟢통화중·통화기록이 쌓입니다.</div>
 
@@ -170,7 +183,7 @@
       const stB = st==='pending' ? '<span class="badge pend">⏳ 승인대기</span>' : st==='blocked' ? '<span class="badge blk">⛔ 차단됨</span>' : '<span class="badge ok">✅ 승인됨</span>';
       const el = document.createElement('div'); el.className='dev'+(st==='pending'?' pend':st==='blocked'?' blk':'');
       el.innerHTML =
-        '<div class="top"><span class="dot '+(on?'on':'')+'"></span>'+
+        '<div class="top"><input type="checkbox" class="sel" data-id="'+esc(d.device_id)+'" onclick="event.stopPropagation()" onchange="updSel()"><span class="dot '+(on?'on':'')+'"></span>'+
         '<span class="name">'+ (esc(d.name)||'(이름 미설정)') +'</span>'+
         '<span class="did">'+ shortId(d.device_id) +'</span></div>'+
         '<div>'+stB+' <span class="badge '+(on?'on':'')+'">'+(on?'🟢 통화중':'⚪ 오프라인')+'</span> '+
@@ -190,6 +203,7 @@
       el.onclick = ()=> openDetail(d.device_id);
       box.appendChild(el);
     });
+    if($('selAll')) $('selAll').checked=false; updSel();
 
     const tb = $('sessions'); tb.innerHTML='';
     if(!ses.length){ tb.innerHTML='<tr><td colspan="5" class="empty">통화 기록이 없습니다.</td></tr>'; }
@@ -232,6 +246,20 @@
   function decide(deviceId, status){
     if(status==='approved'){ if(!confirm('이 단말기를 승인할까요?\n'+shortId(deviceId))) return; sendDecision(deviceId,'approved',''); }
   }
+  // 단말기 선택 삭제 / 전체 삭제
+  function updSel(){ const all=[...document.querySelectorAll('.sel')]; const chk=all.filter(c=>c.checked); const sc=$('selCount'); if(sc) sc.textContent=chk.length+'개 선택'; const sa=$('selAll'); if(sa) sa.checked=(all.length>0 && chk.length===all.length); }
+  async function deleteDevices(ids){
+    const pass=getPass(); if(!pass){ showGate(); return; }
+    try{
+      const r=await fetch(ADMIN_URL.replace('/admin-data','/care-delete'), { method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ pass, device_ids:ids }) });
+      const j=await r.json().catch(()=>({}));
+      if(j&&j.ok){ load(); } else { alert('삭제 실패: 관리자 권한이 없거나 오류입니다.'); }
+    }catch(e){ alert('네트워크 오류로 삭제하지 못했습니다.'); }
+  }
+  $('selAll').onchange=()=>{ document.querySelectorAll('.sel').forEach(c=>{ c.checked=$('selAll').checked; }); updSel(); };
+  $('delSel').onclick=()=>{ const ids=[...document.querySelectorAll('.sel:checked')].map(c=>c.dataset.id); if(!ids.length){ alert('삭제할 단말기를 선택하세요.'); return; } if(!confirm(ids.length+'개 단말기를 삭제할까요?\n프로필과 통화 기록이 함께 삭제되며 되돌릴 수 없습니다.')) return; deleteDevices(ids); };
+  $('delAll').onclick=()=>{ const ids=[...document.querySelectorAll('.sel')].map(c=>c.dataset.id); if(!ids.length){ alert('단말기가 없습니다.'); return; } if(!confirm('전체 '+ids.length+'개 단말기를 모두 삭제할까요?\n모든 프로필·통화 기록이 삭제되며 되돌릴 수 없습니다.')) return; deleteDevices(ids); };
+
   // 차단 사유 선택/입력 모달
   let blockTargetId=null;
   function openBlock(deviceId, name){
