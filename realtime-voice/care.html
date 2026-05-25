@@ -133,17 +133,18 @@
     function weatherTool(){ return { type:'function', name:'get_weather',
       description:'특정 지역의 현재 날씨와 오늘 예보를 가져온다. 어르신이 지역을 말하지 않으면 location을 비워두면 거주지역으로 조회한다. 이 도구를 호출하기 직전에 먼저 "네, 잠시만요. 찾아볼게요"라고 짧게 말할 것.',
       parameters:{ type:'object', properties:{ location:{ type:'string', description:'도시명. 가능하면 영문(예: Seoul, Busan). 어르신 거주지역이면 비워둠.' } }, required:[] } }; }
+    // 뉴스는 n8n 서버가 RSS를 가져와 CORS로 응답(브라우저 프록시는 불안정해서 서버 경유).
+    const NEWS_API='https://hardware-finalize-faceted.ngrok-free.dev/webhook/news';
     async function getNews(topic){
-      const base=(topic&&topic.trim())
-        ? 'https://news.google.com/rss/search?q='+encodeURIComponent(topic.trim())+'&hl=ko&gl=KR&ceid=KR:ko'
-        : 'https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko';
       try{
-        const r=await fetch('https://api.allorigins.win/raw?url='+encodeURIComponent(base));
-        const xml=await r.text();
-        const doc=new DOMParser().parseFromString(xml,'text/xml');
-        let items=Array.from(doc.querySelectorAll('item > title')).map(t=>(t.textContent||'').trim()).filter(Boolean).slice(0,5);
-        if(!items.length) return '지금은 뉴스를 가져오지 못했어요.';
-        return items.map((t,i)=>(i+1)+'. '+t).join('\n');
+        const url=NEWS_API+((topic&&topic.trim())?('?topic='+encodeURIComponent(topic.trim())):'');
+        const r=await fetch(url,{cache:'no-store',headers:{'ngrok-skip-browser-warning':'true'}});
+        if(!r.ok) return '지금은 뉴스를 가져오지 못했어요.';
+        const j=await r.json();
+        const data=Array.isArray(j)?(j[0]||{}):(j||{});
+        const h=(data.headlines||[]).slice(0,5);
+        if(!h.length) return '지금은 뉴스를 가져오지 못했어요.';
+        return h.map((t,i)=>(i+1)+'. '+t).join('\n');
       }catch(e){ return '지금은 뉴스를 가져오지 못했어요.'; }
     }
     function newsTool(){ return { type:'function', name:'get_news',
