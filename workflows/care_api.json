@@ -192,7 +192,7 @@
         220
       ],
       "parameters": {
-        "jsCode": "const q=($input.first().json.query)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(q.device_id||'');\nconst query=\"SELECT device_id,name,region,voice,env,speed,memo,visits FROM care_profiles WHERE device_id='\"+id+\"'\";\nreturn [{ json:{ query } }];"
+        "jsCode": "const q=($input.first().json.query)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(q.device_id||'');\nconst query=\"SELECT device_id,name,region,voice,env,speed,memo,visits,status FROM care_profiles WHERE device_id='\"+id+\"'\";\nreturn [{ json:{ query } }];"
       }
     },
     {
@@ -226,7 +226,7 @@
         220
       ],
       "parameters": {
-        "jsCode": "const rows=$input.all();\nconst r=(rows.length&&rows[0].json)?rows[0].json:{};\nconst known=!!(r&&r.device_id);\nreturn [{ json:{ known, name:r.name||'', region:r.region||'', voice:r.voice||'', env:r.env||'', speed:r.speed||'', memo:r.memo||'', visits:r.visits||0 } }];"
+        "jsCode": "const rows=$input.all();\nconst r=(rows.length&&rows[0].json)?rows[0].json:{};\nconst known=!!(r&&r.device_id);\nreturn [{ json:{ known, name:r.name||'', region:r.region||'', voice:r.voice||'', env:r.env||'', speed:r.speed||'', memo:r.memo||'', visits:r.visits||0, status:r.status||'' } }];"
       }
     },
     {
@@ -258,7 +258,7 @@
         440
       ],
       "parameters": {
-        "jsCode": "const b=($input.first().json.body)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(b.device_id||'');\nlet query;\nif(!id){ query=\"SELECT 1 WHERE false\"; }\nelse { query=\"INSERT INTO care_profiles (device_id,name,region,voice,env,speed,updated_at) VALUES ('\"+id+\"','\"+esc(b.name)+\"','\"+esc(b.region)+\"','\"+esc(b.voice)+\"','\"+esc(b.env)+\"','\"+esc(b.speed)+\"',now()) ON CONFLICT (device_id) DO UPDATE SET name=EXCLUDED.name, region=EXCLUDED.region, voice=EXCLUDED.voice, env=EXCLUDED.env, speed=EXCLUDED.speed, updated_at=now()\"; }\nreturn [{ json:{ query } }];"
+        "jsCode": "const b=($input.first().json.body)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(b.device_id||'');\nlet query;\nif(!id){ query=\"SELECT 1 WHERE false\"; }\nelse { query=\"INSERT INTO care_profiles (device_id,name,region,voice,env,speed,updated_at) VALUES ('\"+id+\"','\"+esc(b.name)+\"','\"+esc(b.region)+\"','\"+esc(b.voice)+\"','\"+esc(b.env)+\"','\"+esc(b.speed)+\"',now()) ON CONFLICT (device_id) DO UPDATE SET name=EXCLUDED.name, region=EXCLUDED.region, voice=EXCLUDED.voice, env=EXCLUDED.env, speed=EXCLUDED.speed, updated_at=now() RETURNING (xmax=0) AS inserted, device_id, name\"; }\nreturn [{ json:{ query } }];"
       }
     },
     {
@@ -274,6 +274,7 @@
         "operation": "executeQuery",
         "query": "={{ $json.query }}"
       },
+      "alwaysOutputData": true,
       "credentials": {
         "postgres": {
           "id": "",
@@ -488,20 +489,215 @@
       "parameters": {
         "jsCode": "return [{ json:{ ok:true } }];"
       }
+    },
+    {
+      "id": "934e9525-f751-4526-86f1-4c8f6321a001",
+      "name": "차단확인빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        -360
+      ],
+      "parameters": {
+        "jsCode": "const b=($input.first().json.body)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(b.device_id||'');\nconst query = id ? (\"SELECT status FROM care_profiles WHERE device_id='\"+id+\"'\") : \"SELECT 'pending' AS status WHERE false\";\nreturn [{ json:{ query, device_id:id } }];"
+      }
+    },
+    {
+      "id": "3e043e07-d861-4103-adcf-bf264651f062",
+      "name": "차단조회",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        -360
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "7b6dab8d-015e-448e-9458-16814568abe3",
+      "name": "차단분기",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        640,
+        -360
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "apv",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "approved",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f6ba7e09-2fed-4a2e-9c15-39d380e9aa16",
+      "name": "토큰거부",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        -440
+      ],
+      "parameters": {
+        "jsCode": "const st=(($input.first().json&&$input.first().json.status)||'pending');\nconst blocked=st==='blocked';\nreturn [{ json:{ error: blocked?'blocked':'pending', message: blocked?'이 단말기는 관리자에 의해 차단되었습니다.':'관리자 승인 대기 중입니다. 승인 후 이용하실 수 있어요.' } }];"
+      }
+    },
+    {
+      "id": "b1eda966-0ab1-4a7e-abac-1a662b705a70",
+      "name": "차단요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        1320
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "care-block",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "95dc5f0a-a38a-4644-ad5f-531973f14604"
+    },
+    {
+      "id": "d59c61e6-207e-45cf-9076-6712fe350891",
+      "name": "차단설정빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        1320
+      ],
+      "parameters": {
+        "jsCode": "const b=($input.first().json.body)||{};\nconst PASS='CHANGE_ME_ADMIN_PASS';\nif(String(b.pass||'')!==PASS) return [{ json:{ query:\"SELECT 1 WHERE false\", ok:false, auth:false } }];\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst id=esc(b.device_id||'');\nlet st=String(b.status||'').trim(); if(['approved','blocked','pending'].indexOf(st)<0) st='blocked';\nconst query = id ? (\"INSERT INTO care_profiles (device_id,status,updated_at) VALUES ('\"+id+\"','\"+st+\"',now()) ON CONFLICT (device_id) DO UPDATE SET status='\"+st+\"', updated_at=now()\") : \"SELECT 1 WHERE false\";\nreturn [{ json:{ query, ok:!!id, auth:true, status:st } }];"
+      }
+    },
+    {
+      "id": "ada63d6c-4468-49e1-bd9a-f1272aca2afd",
+      "name": "차단설정저장",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        1320
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "7f2905de-5e60-4edd-a2a1-a1d80a1f0849",
+      "name": "차단설정응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1320
+      ],
+      "parameters": {
+        "jsCode": "let r={ok:false,auth:false,status:''}; try{ const j=$('차단설정빌드').first().json; r.ok=!!j.ok; r.auth=!!j.auth; r.status=j.status||''; }catch(e){}\nreturn [{ json:r }];"
+      }
+    },
+    {
+      "id": "2f5f9e31-8f8b-44e7-8c4f-ac3935405c08",
+      "name": "신규분기",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        640,
+        440
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "ins",
+              "leftValue": "={{ $json.inserted }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "98b56d09-1d63-4308-862a-ac2311e5012b",
+      "name": "신규알림",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        860,
+        360
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "ADMIN_CHAT_ID",
+        "text": "=🆕 새 단말기가 돌봄 통화에 처음 접속했습니다.\n단말기: {{ ($json.device_id || '').slice(0,8) }}\n이름/담당: {{ $json.name || '(미입력)' }}\n\n승인 또는 차단을 결정해 주세요(관리자 대시보드):\nhttps://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/admin.html",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "webhookId": "ae0d78f3-fb9d-4325-b02b-00dac7a89e76",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram Bot"
+        }
+      }
     }
   ],
   "connections": {
-    "토큰요청": {
-      "main": [
-        [
-          {
-            "node": "토큰발급",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "토큰발급": {
       "main": [
         [
@@ -623,17 +819,6 @@
         ]
       ]
     },
-    "프로필저장": {
-      "main": [
-        [
-          {
-            "node": "저장응답",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "세션요청": {
       "main": [
         [
@@ -727,6 +912,130 @@
         [
           {
             "node": "초기화응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "토큰요청": {
+      "main": [
+        [
+          {
+            "node": "차단확인빌드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "차단확인빌드": {
+      "main": [
+        [
+          {
+            "node": "차단조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "차단조회": {
+      "main": [
+        [
+          {
+            "node": "차단분기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "차단분기": {
+      "main": [
+        [
+          {
+            "node": "토큰거부",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "토큰발급",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "차단요청": {
+      "main": [
+        [
+          {
+            "node": "차단설정빌드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "차단설정빌드": {
+      "main": [
+        [
+          {
+            "node": "차단설정저장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "차단설정저장": {
+      "main": [
+        [
+          {
+            "node": "차단설정응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "프로필저장": {
+      "main": [
+        [
+          {
+            "node": "신규분기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "신규분기": {
+      "main": [
+        [
+          {
+            "node": "신규알림",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "저장응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "신규알림": {
+      "main": [
+        [
+          {
+            "node": "저장응답",
             "type": "main",
             "index": 0
           }

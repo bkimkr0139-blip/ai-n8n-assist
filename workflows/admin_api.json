@@ -30,7 +30,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "const q=($input.first().json.query)||{};\nconst PASS='CHANGE_ME_ADMIN_PASS';\nconst ok=(String(q.pass||'')===PASS);\nconst deviceSQL=\"SELECT p.device_id,p.name,p.region,p.visits,p.memo,p.last_ping,(EXTRACT(EPOCH FROM (now()-p.last_ping))<45) AS online,COALESCE(s.cnt,0) AS sessions,COALESCE(s.dur,0) AS total_duration,COALESCE(s.tok,0) AS total_tokens,s.last_at FROM care_profiles p LEFT JOIN (SELECT device_id,count(*) cnt,sum(duration_sec) dur,sum(total_tokens) tok,max(started_at) last_at FROM care_sessions GROUP BY device_id) s ON s.device_id=p.device_id ORDER BY p.last_ping DESC NULLS LAST, p.updated_at DESC\";\nreturn [{json:{ ok, query: ok?deviceSQL:\"SELECT 1 WHERE false\" }}];"
+        "jsCode": "const q=($input.first().json.query)||{};\nconst PASS='CHANGE_ME_ADMIN_PASS';\nconst ok=(String(q.pass||'')===PASS);\nconst deviceSQL=\"SELECT p.device_id,p.name,p.region,p.visits,p.memo,p.last_ping,p.status,(EXTRACT(EPOCH FROM (now()-p.last_ping))<45) AS online,COALESCE(s.cnt,0) AS sessions,COALESCE(s.dur,0) AS total_duration,COALESCE(s.tok,0) AS total_tokens,s.last_at FROM care_profiles p LEFT JOIN (SELECT device_id,count(*) cnt,sum(duration_sec) dur,sum(total_tokens) tok,max(started_at) last_at FROM care_sessions GROUP BY device_id) s ON s.device_id=p.device_id ORDER BY (p.status='pending') DESC, p.last_ping DESC NULLS LAST, p.updated_at DESC\";\nreturn [{json:{ ok, query: ok?deviceSQL:\"SELECT 1 WHERE false\" }}];"
       }
     },
     {

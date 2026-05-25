@@ -39,6 +39,11 @@
   .dev .grid .m{ color:var(--mut); }
   .badge{ font-size:.72rem; padding:2px 8px; border-radius:999px; background:var(--card2); color:var(--mut); }
   .badge.on{ color:var(--on); }
+  .badge.ok{ color:#22c55e; } .badge.pend{ color:#f59e0b; border-color:#f59e0b; } .badge.blk{ color:#f87171; border-color:#f87171; }
+  .dev.pend{ border-color:#f59e0b; } .dev.blk{ border-color:#f87171; opacity:.7; }
+  .act{ display:flex; gap:8px; margin-top:10px; }
+  .act .mini{ font-size:.82rem; font-weight:700; padding:6px 12px; border-radius:8px; background:#22c55e; color:#04261a; }
+  .act .mini.danger{ background:#f87171; color:#2a0606; }
   /* sessions table */
   .tbl{ width:100%; border-collapse:collapse; font-size:.86rem; background:var(--card); border-radius:12px; overflow:hidden; }
   .tbl th,.tbl td{ padding:9px 11px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
@@ -143,12 +148,14 @@
     $('devEmpty').hidden = devs.length>0;
     devs.forEach(d=>{
       const on = (d.online===true||d.online==='t'||d.online===1);
-      const el = document.createElement('div'); el.className='dev';
+      const st = d.status||'approved';
+      const stB = st==='pending' ? '<span class="badge pend">⏳ 승인대기</span>' : st==='blocked' ? '<span class="badge blk">⛔ 차단됨</span>' : '<span class="badge ok">✅ 승인됨</span>';
+      const el = document.createElement('div'); el.className='dev'+(st==='pending'?' pend':st==='blocked'?' blk':'');
       el.innerHTML =
         '<div class="top"><span class="dot '+(on?'on':'')+'"></span>'+
         '<span class="name">'+ (esc(d.name)||'(이름 미설정)') +'</span>'+
         '<span class="did">'+ shortId(d.device_id) +'</span></div>'+
-        '<div><span class="badge '+(on?'on':'')+'">'+(on?'🟢 통화중':'⚪ 오프라인')+'</span> '+
+        '<div>'+stB+' <span class="badge '+(on?'on':'')+'">'+(on?'🟢 통화중':'⚪ 오프라인')+'</span> '+
         '<span class="badge">'+ (esc(d.region)||'지역?') +'</span></div>'+
         '<div class="grid">'+
           '<div><span class="m">통화수</span> '+num(d.sessions)+'</div>'+
@@ -156,6 +163,11 @@
           '<div><span class="m">토큰</span> '+num(d.total_tokens)+'</div>'+
           '<div><span class="m">최근접속</span> '+rel(d.last_ping||d.last_at)+'</div>'+
         '</div>';
+      const act=document.createElement('div'); act.className='act';
+      const mk=(label,status,danger)=>{ const b=document.createElement('button'); b.className='mini'+(danger?' danger':''); b.textContent=label; b.onclick=(e)=>{ e.stopPropagation(); decide(d.device_id,status); }; return b; };
+      if(st!=='approved') act.appendChild(mk('✅ 승인','approved',false));
+      if(st!=='blocked') act.appendChild(mk('⛔ 차단','blocked',true));
+      el.appendChild(act);
       el.onclick = ()=> openDetail(d.device_id);
       box.appendChild(el);
     });
@@ -189,6 +201,17 @@
   }
   $('closeDetail').onclick = ()=> $('detail').hidden=true;
   $('detail').onclick = (e)=>{ if(e.target===$('detail')) $('detail').hidden=true; };
+
+  async function decide(deviceId, status){
+    const pass=getPass(); if(!pass){ showGate(); return; }
+    const label = status==='approved' ? '승인' : '차단';
+    if(!confirm('단말기 '+shortId(deviceId)+' 을(를) '+label+' 처리할까요?')) return;
+    try{
+      const r=await fetch(ADMIN_URL.replace('/admin-data','/care-block'), { method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ pass, device_id:deviceId, status }) });
+      const j=await r.json().catch(()=>({}));
+      if(j&&j.ok){ load(); } else { alert('처리 실패: 관리자 권한이 없거나 오류입니다.'); }
+    }catch(e){ alert('네트워크 오류로 처리하지 못했습니다.'); }
+  }
 
   async function load(){
     const res = await fetchData();
