@@ -63,6 +63,11 @@
 
   <div id="status">대기 중 — [통화 시작]을 누르세요</div>
 
+  <div id="approval" class="card" style="display:none; border:2px solid #e0a000; background:#fff8e6">
+    <div id="approvalMsg" style="font-size:1.08rem; line-height:1.65"></div>
+    <button id="reqApprove" class="bigbtn" style="display:none; margin-top:12px; background:#e0a000">📩 승인 요청 보내기</button>
+  </div>
+
   <div class="card">
     <div class="memrow"><span id="memstate">📓 이전 기록: 확인 중…</span><button id="clearmem" class="small">기억 지우기</button></div>
     <details id="memdetails" style="margin-top:8px"><summary>저장된 어르신 메모 보기</summary><div id="memtext" style="white-space:pre-wrap;margin-top:8px"></div></details>
@@ -106,7 +111,8 @@
     const $ = (id) => document.getElementById(id);
     const els = { worker:$('worker'), region:$('region'), voice:$('voice'), speed:$('speed'), env:$('env'), start:$('start'), stop:$('stop'), status:$('status'),
                   log:$('log'), audio:$('audio'), memstate:$('memstate'), memtext:$('memtext'), clearmem:$('clearmem'),
-                  vfilter:$('vfilter'), relearn:$('relearn'), vstate:$('vstate') };
+                  vfilter:$('vfilter'), relearn:$('relearn'), vstate:$('vstate'),
+                  approval:$('approval'), approvalMsg:$('approvalMsg'), reqApprove:$('reqApprove') };
     const ENV = { quiet:{nr:'near_field',th:0.45}, normal:{nr:'far_field',th:0.55}, noisy:{nr:'far_field',th:0.72} };
     els.env.value = localStorage.getItem('care_env') || 'normal';
     els.worker.value = localStorage.getItem(WORKER_KEY) || '';
@@ -117,6 +123,42 @@
       try{ await fetch(PROFILE_SAVE_URL,{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ device_id:DEVICE_ID, name:(els.worker.value||'').trim(), region:(els.region.value||'서울').trim(), voice:els.voice.value, env:els.env.value, speed:els.speed.value }) }); }catch(e){}
     }
     els.worker.onchange = saveProfile; els.region.onchange = saveProfile; els.voice.onchange = saveProfile; els.speed.onchange = saveProfile; els.env.onchange = saveProfile;
+    // ===== 신규 단말기 승인 안내 =====
+    let approvalPoll=null;
+    function showApproval(state){
+      const box=els.approval, msg=els.approvalMsg, btn=els.reqApprove;
+      if(!box) return;
+      if(state==='approved' || state===''){ box.style.display='none'; btn.style.display='none'; els.start.disabled=false; return; }
+      box.style.display='block'; els.start.disabled=true; btn.style.display='none';
+      if(state==='new'){
+        msg.innerHTML='🔒 <b>이 돌봄 서비스는 관리자 승인이 필요합니다.</b><br>위 칸에 <b>성함</b>과 <b>지역</b>을 입력하신 뒤, 아래 버튼을 눌러 승인을 요청해 주세요.';
+        btn.style.display='block'; setStatus('🔒 관리자 승인이 필요합니다 — 성함·지역 입력 후 승인 요청');
+      } else if(state==='requested' || state==='pending'){
+        msg.innerHTML='⏳ <b>승인 요청을 보냈습니다.</b><br>관리자가 확인하고 <b>승인하면 통화</b>하실 수 있어요. 잠시만 기다려 주세요.<br>급하시면 <b>관리자에게 연락</b>해 승인을 부탁해 주세요.<br><span style="color:#888;font-size:.92rem">승인되면 이 화면이 자동으로 바뀝니다.</span>';
+        setStatus('⏳ 관리자 승인 대기 중입니다.');
+      } else if(state==='blocked'){
+        msg.innerHTML='⛔ <b>이 단말기는 차단되었습니다.</b><br>이용하시려면 관리자에게 문의해 주세요.';
+        setStatus('⛔ 차단된 단말기입니다.');
+      }
+    }
+    async function checkApproval(){
+      try{
+        const r=await fetch(PROFILE_GET_URL+'?device_id='+encodeURIComponent(DEVICE_ID),{ headers:{ 'ngrok-skip-browser-warning':'true' } });
+        if(!r.ok) return; const p=await r.json(); const st=(p&&p.status)||'';
+        if(st==='approved'){ showApproval('approved'); setStatus('✅ 승인되었습니다! [통화 시작]을 누르세요.'); if(approvalPoll){clearInterval(approvalPoll);approvalPoll=null;} }
+        else if(st==='blocked'){ showApproval('blocked'); if(approvalPoll){clearInterval(approvalPoll);approvalPoll=null;} }
+      }catch(e){}
+    }
+    function startApprovalPoll(){ if(approvalPoll) return; approvalPoll=setInterval(checkApproval, 20000); }
+    els.reqApprove.onclick = async ()=>{
+      const nm=(els.worker.value||'').trim();
+      if(!nm){ alert('성함(또는 담당자 이름)을 입력해 주세요.'); els.worker.focus(); return; }
+      if(!(els.region.value||'').trim()){ alert('지역을 입력해 주세요.'); els.region.focus(); return; }
+      els.reqApprove.disabled=true;
+      await saveProfile();   // 등록 + 관리자에게 텔레그램 알림(이름·지역 포함)
+      showApproval('requested'); startApprovalPoll();
+      els.reqApprove.disabled=false;
+    };
     // 같은 단말기로 재접속 시 서버에서 프로필·기억을 불러와 동일 인물로 이어감
     async function loadProfile(){
       try{
@@ -130,13 +172,17 @@
             if(p.speed) els.speed.value=p.speed;
             if(p.memo){ pastMem=p.memo; saveMem(p.memo); }
             els.memstate.textContent='📓 이 단말기로 '+(p.visits||0)+'번째 · 이전 기억을 불러왔어요 (같은 분으로 이어갑니다)';
-            if(p.status==='pending') setStatus('⏳ 관리자 승인 대기 중입니다. 승인되면 통화할 수 있어요.');
-            else if(p.status==='blocked') setStatus('⛔ 이 단말기는 차단되었습니다. 관리자에게 문의하세요.');
+            const st=p.status||'approved';
+            if(st==='approved') showApproval('approved');
+            else if(st==='blocked') showApproval('blocked');
+            else { showApproval('pending'); startApprovalPoll(); }
+            saveProfile();   // 알려진 단말기: 최신 정보로 갱신
+            return;
           }
         }
-      }catch(e){}
-      // 페이지를 연 것만으로도 단말기를 서버에 등록 → 관리자 대시보드에 오프라인 상태로 표시
-      saveProfile();
+        // 신규(미등록) 단말기: 자동 등록하지 않고 승인 요청 안내
+        showApproval('new');
+      }catch(e){ showApproval('new'); }
     }
 
     let pc=null, dc=null, micStream=null, aiBuf='', turns=[], pastMem='', endRequested=false, ending=false;
