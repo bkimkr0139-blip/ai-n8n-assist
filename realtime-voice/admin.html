@@ -23,7 +23,7 @@
   #gate .row{ display:flex; gap:8px; } #gate input{ flex:1; }
   #gateErr{ color:#f87171; font-size:.85rem; margin-top:10px; min-height:1em; }
   /* summary */
-  .summary{ display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:18px; }
+  .summary{ display:grid; grid-template-columns:repeat(auto-fit,minmax(108px,1fr)); gap:10px; margin-bottom:18px; }
   .stat{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
   .stat .k{ color:var(--mut); font-size:.78rem; } .stat .v{ font-size:1.5rem; font-weight:800; margin-top:4px; }
   h2.sec{ font-size:1rem; color:var(--mut); margin:18px 0 10px; font-weight:600; }
@@ -128,6 +128,7 @@
       <div class="stat"><div class="k">총 통화수</div><div class="v" id="s-ses">0</div></div>
       <div class="stat"><div class="k">총 통화시간</div><div class="v" id="s-dur">0</div></div>
       <div class="stat"><div class="k">총 토큰</div><div class="v" id="s-tok">0</div></div>
+      <div class="stat"><div class="k">예상 비용</div><div class="v" id="s-cost" style="font-size:1.05rem">$0</div></div>
     </div>
 
     <h2 class="sec">단말기별 접속 상태 (카드를 누르면 상세)</h2>
@@ -152,7 +153,7 @@
     <div class="card">
       <div class="ctrl">
         <label>기간 <select id="anPeriod"><option value="day">일별</option><option value="week">주별</option><option value="month" selected>월별</option><option value="quarter">분기별</option><option value="year">년별</option></select></label>
-        <label>지표 <select id="anMetric"><option value="sessions">통화수</option><option value="duration">통화시간</option><option value="tokens">토큰</option></select></label>
+        <label>지표 <select id="anMetric"><option value="sessions">통화수</option><option value="duration">통화시간</option><option value="tokens">토큰</option><option value="cost">비용</option></select></label>
         <label>단말기 <select id="anDevice"><option value="">전체</option></select></label>
         <label>지역 <select id="anRegion"><option value="">전체</option></select></label>
       </div>
@@ -161,6 +162,7 @@
       <div class="stat"><div class="k">통화수</div><div class="v" id="a-ses">0</div></div>
       <div class="stat"><div class="k">통화시간</div><div class="v" id="a-dur">0</div></div>
       <div class="stat"><div class="k">토큰</div><div class="v" id="a-tok">0</div></div>
+      <div class="stat"><div class="k">예상 비용</div><div class="v" id="a-cost" style="font-size:1.05rem">$0</div></div>
       <div class="stat"><div class="k">단말기수</div><div class="v" id="a-dev">0</div></div>
     </div>
     <h2 class="sec" id="anPTitle">기간별 추이</h2>
@@ -168,7 +170,7 @@
     <h2 class="sec">지역별</h2>
     <div class="card" id="anByRegion"></div>
     <h2 class="sec">단말기별 (행을 누르면 그 단말기로 분석)</h2>
-    <div class="wrap"><table class="tbl"><thead><tr><th>단말기</th><th>지역</th><th>통화수</th><th>통화시간</th><th>토큰</th><th>최근</th></tr></thead>
+    <div class="wrap"><table class="tbl"><thead><tr><th>단말기</th><th>지역</th><th>통화수</th><th>통화시간</th><th>토큰</th><th>비용</th><th>최근</th></tr></thead>
     <tbody id="anByDevice"></tbody></table></div>
   </div>
 </main>
@@ -209,6 +211,10 @@
   let timer = null, auto = true;
 
   const num = (n)=> (parseInt(n)||0).toLocaleString();
+  // 요청당 비용 = 입력토큰 비용 + 출력토큰 비용. 요율은 여기서 수정(OpenAI는 1M 토큰당 USD).
+  const COST = { inPer1M: 32, outPer1M: 64, krwPerUsd: 1350 };  // gpt-realtime(오디오) 추정 요율 — 모델/요율·로컬LLM에 맞게 수정
+  function calcCost(inTok, outTok){ return ((+inTok||0)*COST.inPer1M + (+outTok||0)*COST.outPer1M)/1e6; }  // USD
+  function fmtCost(usd){ const w=Math.round(usd*COST.krwPerUsd); return '$'+(usd<1?usd.toFixed(3):usd.toFixed(2))+' (₩'+w.toLocaleString()+')'; }
   function dur(sec){ sec=parseInt(sec)||0; const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60; if(h) return h+'시간 '+m+'분'; if(m) return m+'분 '+s+'초'; return s+'초'; }
   function rel(iso){ if(!iso) return '없음'; const d=new Date(iso); const s=Math.floor((Date.now()-d.getTime())/1000); if(s<0) return '방금'; if(s<60) return s+'초 전'; if(s<3600) return Math.floor(s/60)+'분 전'; if(s<86400) return Math.floor(s/3600)+'시간 전'; return Math.floor(s/86400)+'일 전'; }
   function tm(iso){ if(!iso) return '-'; const d=new Date(iso); return d.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
@@ -232,6 +238,7 @@
     $('s-ses').textContent = num(ses.length>=100? '100+' : ses.length);
     $('s-dur').textContent = dur(devs.reduce((a,d)=>a+(parseInt(d.total_duration)||0),0));
     $('s-tok').textContent = num(devs.reduce((a,d)=>a+(parseInt(d.total_tokens)||0),0));
+    $('s-cost').textContent = fmtCost(devs.reduce((a,d)=>a+calcCost(d.in_tok,d.out_tok),0));
 
     const box = $('devices'); box.innerHTML='';
     $('devEmpty').hidden = devs.length>0;
@@ -400,8 +407,8 @@
     rsel.innerHTML='<option value="">전체 지역</option>'+regions.map(r=>'<option value="'+esc(r)+'">'+esc(r)+'</option>').join('');
     rsel.value=rcur;
   }
-  function metricVal(d){ return anState.metric==='duration'?(+d.duration||0): anState.metric==='tokens'?(+d.tokens||0):(+d.sessions||0); }
-  function metricFmt(v){ return anState.metric==='duration'?dur(v): anState.metric==='tokens'?num(v): num(v)+'회'; }
+  function metricVal(d){ return anState.metric==='duration'?(+d.duration||0): anState.metric==='tokens'?(+d.tokens||0): anState.metric==='cost'?calcCost(d.in_tok,d.out_tok):(+d.sessions||0); }
+  function metricFmt(v){ return anState.metric==='duration'?dur(v): anState.metric==='tokens'?num(v): anState.metric==='cost'?fmtCost(v): num(v)+'회'; }
   function fmtBucket(b){ const p=anState.period; if(!b) return b; const y=b.slice(0,4), mo=+b.slice(5,7); if(p==='year') return y+'년'; if(p==='quarter') return y+' '+(Math.floor((mo-1)/3)+1)+'분기'; if(p==='month') return b.slice(0,7); if(p==='week') return b.slice(5)+' 주'; return b.slice(5); }
   function bars(containerId, rows, labelFn){
     const el=$(containerId); el.innerHTML='';
@@ -417,16 +424,17 @@
     $('a-ses').textContent=num(dev.reduce((a,d)=>a+(+d.sessions||0),0));
     $('a-dur').textContent=dur(dev.reduce((a,d)=>a+(+d.duration||0),0));
     $('a-tok').textContent=num(dev.reduce((a,d)=>a+(+d.tokens||0),0));
+    $('a-cost').textContent=fmtCost(dev.reduce((a,d)=>a+calcCost(d.in_tok,d.out_tok),0));
     $('a-dev').textContent=num(dev.length);
     const pl={day:'일',week:'주',month:'월',quarter:'분기',year:'년'}[anState.period]||'';
-    const ml={sessions:'통화수',duration:'통화시간',tokens:'토큰'}[anState.metric]||'';
+    const ml={sessions:'통화수',duration:'통화시간',tokens:'토큰',cost:'비용'}[anState.metric]||'';
     $('anPTitle').textContent=pl+'별 추이 — '+ml;
     bars('anByPeriod', anData.byPeriod, r=>fmtBucket(r.bucket));
     bars('anByRegion', anData.byRegion, r=>r.region||'(미지정)');
     const tb=$('anByDevice'); tb.innerHTML='';
     if(!dev.length){ tb.innerHTML='<tr><td colspan="6" class="empty">데이터가 없습니다.</td></tr>'; }
     dev.forEach(d=>{ const tr=document.createElement('tr'); tr.className='click';
-      tr.innerHTML='<td>'+(esc(d.name)||shortId(d.device_id))+'</td><td>'+esc(d.region||'')+'</td><td>'+num(d.sessions)+'회</td><td>'+dur(d.duration)+'</td><td>'+num(d.tokens)+'</td><td>'+esc(d.last||'-')+'</td>';
+      tr.innerHTML='<td>'+(esc(d.name)||shortId(d.device_id))+'</td><td>'+esc(d.region||'')+'</td><td>'+num(d.sessions)+'회</td><td>'+dur(d.duration)+'</td><td>'+num(d.tokens)+'</td><td>'+fmtCost(calcCost(d.in_tok,d.out_tok))+'</td><td>'+esc(d.last||'-')+'</td>';
       tr.onclick=()=>{ $('anDevice').value=d.device_id; loadAnalytics(); };
       tb.appendChild(tr); });
   }
