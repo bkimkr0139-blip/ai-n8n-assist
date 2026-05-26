@@ -205,8 +205,7 @@
     let sessionStart=0, tokIn=0, tokOut=0, tokTotal=0, pingTimer=null;
     let silenceTimer=null, noResp=0, stopTimer=null, stopped=false;
     let sumIn=0, sumOut=0, sumProvider='';   // 통화 후 요약 LLM 사용량(요약은 로컬/클라우드 가능)
-    // 도구 호출 race fix: fetch 완료(fetched) + response.done 수신(respDoneSeen) 둘 다 충족 시에만 response.create 발사
-    let fcPending=null, respDoneSeen=false;
+    // 도구 호출: 결과 제출 후 즉시 response.create (OpenAI 공식 패턴). deferred는 오히려 race 유발해 1차 응답 누락.
     const SILENCE_MS=22000;   // AI가 말한 뒤 어르신 응답을 기다리는 시간(어르신 생각·뉴스 청취 시간 고려)
     const MAX_NORESP=5;       // 이만큼 무응답이면 통화 마무리(=호출 4회 후, 약 110초 침묵 시)
     const setStatus = (s)=> els.status.textContent = s;
@@ -326,14 +325,10 @@
       else if(item.name==='get_news'){ setStatus('📰 뉴스 확인 중...'); out = await getNews(args.topic); add('sys','📰 '+out); }
       else if(item.name==='get_time'){ out = getTimeNow(); add('sys','🕐 '+out); }
       else out = '지원하지 않는 기능입니다.';
-      try{ dc.send(JSON.stringify({ type:'conversation.item.create', item:{ type:'function_call_output', call_id:item.call_id, output: out } })); }catch{}
-      if(fcPending && fcPending.call_id===item.call_id){ fcPending.fetched=true; maybeContinueAfterFC(); }
-    }
-    function maybeContinueAfterFC(){
-      if(fcPending && fcPending.fetched && respDoneSeen){
-        try{ dc.send(JSON.stringify({ type:'response.create' })); }catch{}
-        fcPending=null; respDoneSeen=false;
-      }
+      try{
+        dc.send(JSON.stringify({ type:'conversation.item.create', item:{ type:'function_call_output', call_id:item.call_id, output: out } }));
+        dc.send(JSON.stringify({ type:'response.create' }));
+      }catch(e){}
     }
 
     // ===== 어르신 목소리 학습 + 화자 필터 (피치 기반 게이트) =====
@@ -428,7 +423,7 @@
     async function start(){
       saveProfile();
       els.start.disabled = true; turns = []; endRequested=false; ending=false;
-      sessionStart = Date.now(); tokIn=0; tokOut=0; tokTotal=0; noResp=0; stopped=false; fcPending=null; respDoneSeen=false; clearSilence();
+      sessionStart = Date.now(); tokIn=0; tokOut=0; tokTotal=0; noResp=0; stopped=false; clearSilence();
       // 서버(n8n)에서 단기 접속 토큰 발급 — API 키는 서버에만 있고 브라우저로 내려오지 않음
       let token='', tj=null;
       try { setStatus('🔑 연결 준비 중...'); const tr=await fetch(TOKEN_URL,{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ device_id:DEVICE_ID }) }); if(tr.ok){ tj=await tr.json(); token=(tj&&tj.value)||''; } }
@@ -445,13 +440,7 @@
       dc = pc.createDataChannel('oai-events');
       dc.onopen = ()=>{ setStatus('🟢 연결됐어요 — 편하게 말씀하세요'); try{ dc.send(JSON.stringify(sessionConfig())); }catch{}; try{ dc.send(JSON.stringify({type:'response.create'})); }catch{}; add('sys', pastMem ? '이전 대화를 기억하고 있어요. 안부를 나눠요.' : '첫 통화예요. 밝게 인사드릴게요.'); };
       dc.onmessage = (e)=>{ let ev; try{ ev=JSON.parse(e.data); }catch{ return; } const t=ev.type||'';
-        if(t==='response.output_item.done' && ev.item && ev.item.type==='function_call'){
-          // 동기적으로 보류 상태 표시(async fetch 동안 response.done이 먼저 와도 사라지지 않도록)
-          fcPending = { call_id: ev.item.call_id, fetched:false };
-          respDoneSeen = false;
-          handleFunctionCall(ev.item);
-          return;
-        }
+        if(t==='response.output_item.done' && ev.item && ev.item.type==='function_call'){ handleFunctionCall(ev.item); return; }
         if(t.indexOf('input_audio_transcription')>=0 && t.endsWith('.completed')){ if(ev.transcript){ const s=ev.transcript.trim(); clearSilence(); noResp=0; add('me','🗣️ '+s); turns.push('어르신: '+s); if(isEndIntent(s)) endRequested=true; } }
         else if(t.endsWith('audio_transcript.delta')){ aiBuf += (ev.delta||''); clearSilence(); }
         else if(t.endsWith('audio_transcript.done')){ const s=(ev.transcript||aiBuf).trim(); if(s){ add('ai','💚 '+s); turns.push('도우미: '+s); } aiBuf='';
@@ -459,8 +448,8 @@
           else if(ending){ scheduleStop(Math.max(1800, s.length*120)); }   // 마무리 인사 끝 → 종료
           else { armSilence(); }   // AI가 말 마침 → 어르신 응답 대기 시작
         }
-        else if(t==='response.done'){ const u=ev.response&&ev.response.usage; if(u){ tokIn+=(u.input_tokens||0); tokOut+=(u.output_tokens||0); tokTotal+=(u.total_tokens||0); } if(fcPending){ respDoneSeen=true; maybeContinueAfterFC(); } }
-        else if(t==='error'){ add('sys','⚠️ '+JSON.stringify(ev.error||ev)); }
+        else if(t==='response.done'){ const u=ev.response&&ev.response.usage; if(u){ tokIn+=(u.input_tokens||0); tokOut+=(u.output_tokens||0); tokTotal+=(u.total_tokens||0); } }
+        else if(t==='error'){ const e=ev.error||ev; const code=e&&e.code||'error'; const msg=e&&e.message||JSON.stringify(e); add('sys','⚠️ ['+code+'] '+msg); }
       };
       pc.onconnectionstatechange = ()=>{ if(['failed','disconnected','closed'].includes(pc.connectionState) && !ending) setStatus('통화가 종료되었어요 ('+pc.connectionState+')'); };
       try{
