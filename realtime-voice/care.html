@@ -204,8 +204,8 @@
     let pc=null, dc=null, micStream=null, aiBuf='', turns=[], pastMem='', endRequested=false, ending=false;
     let sessionStart=0, tokIn=0, tokOut=0, tokTotal=0, pingTimer=null;
     let silenceTimer=null, noResp=0, stopTimer=null, stopped=false;
-    const SILENCE_MS=10000;   // AI가 말한 뒤 어르신 응답을 기다리는 시간
-    const MAX_NORESP=3;       // 이만큼 무응답이면(=호출 2회 후) 통화 마무리
+    const SILENCE_MS=22000;   // AI가 말한 뒤 어르신 응답을 기다리는 시간(어르신 생각·뉴스 청취 시간 고려)
+    const MAX_NORESP=5;       // 이만큼 무응답이면 통화 마무리(=호출 4회 후, 약 110초 침묵 시)
     const setStatus = (s)=> els.status.textContent = s;
     function add(cls, text){ const d=document.createElement('div'); d.className='msg '+cls; d.textContent=text; els.log.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'end'}); }
     function loadMem(){ try { return localStorage.getItem(MEM_KEY)||''; } catch { return ''; } }
@@ -305,6 +305,7 @@
     }
 
     async function handleFunctionCall(item){
+      clearSilence();  // 도구 호출 중에는 무응답 타이머 일시정지 (느린 검색 시 잘못된 종료 방지)
       let args={}; try{ args=JSON.parse(item.arguments||'{}'); }catch{}
       let out='';
       if(item.name==='get_weather'){ setStatus('🌤️ 날씨 확인 중...'); out = await getWeather(args.location); add('sys','🌤️ '+out); }
