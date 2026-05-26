@@ -273,8 +273,10 @@
       description:'지금 현재 날짜·시간·요일을 알려준다. 어르신이 시간/날짜/요일/며칠/무슨 요일인지, 또는 약 드실 시간인지 물으면 반드시 이 도구를 호출해 그 결과(실제 현재 시각)로 답하라. 시간을 추측하지 말 것.',
       parameters:{ type:'object', properties:{}, required:[] } }; }
 
-    const END_WORDS = ['끊','그만','이만','들어가','안녕히','수고했','수고하','잘 있','다음에 봐'];
-    function isEndIntent(t){ return END_WORDS.some(w => t.indexOf(w) >= 0); }
+    // 한국어 + 영어 종료 의도(영어는 소문자로 비교)
+    const END_WORDS = ['끊','그만','이만','들어가','안녕히','수고했','수고하','잘 있','다음에 봐',
+      'bye','goodbye','good bye','see you','hang up','gotta go','talk later','that\'s all','i\'m done'];
+    function isEndIntent(t){ const s=(t||'').toLowerCase(); return END_WORDS.some(w => s.indexOf(w) >= 0); }
 
     function buildInstructions(){
       pastMem = loadMem();
