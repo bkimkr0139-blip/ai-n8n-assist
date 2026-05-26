@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS care_sessions (
   summary_in_tok   int DEFAULT 0,   -- 통화 후 요약 LLM 입력 토큰
   summary_out_tok  int DEFAULT 0,   -- 통화 후 요약 LLM 출력 토큰
   summary_provider text DEFAULT '', -- 'openai' | 'ollama' (요약에 쓰인 LLM, 비용 분리용)
+  summary_model    text DEFAULT '', -- 요약에 쓰인 실제 모델명(예: exaone3.5:2.4b, gpt-4o-mini)
   created_at    timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS care_sessions_dev_idx ON care_sessions(device_id, started_at DESC);

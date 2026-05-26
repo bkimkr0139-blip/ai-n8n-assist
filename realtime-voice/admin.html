@@ -305,10 +305,17 @@
     // 클라우드 vs 로컬 토큰: 서버 집계값(d.in_tok=클라우드 전체, d.local_*_tok=로컬 요약)을 그대로 사용 → 분석/대시보드와 숫자 일치.
     const cIn=+d.in_tok||0, cOut=+d.out_tok||0, lIn=+d.local_in_tok||0, lOut=+d.local_out_tok||0;
     const cloudCost=calcCost(cIn,cOut);
+    // 실제 사용된 요약 모델명 집계(과거 세션). 모델 미기록 세션이 있으면 현재 LLM 설정으로 폴백.
+    const ollamaModels=[...new Set(ses.filter(s=>(s.summary_provider||'').toLowerCase()==='ollama').map(s=>(s.summary_model||'').trim()).filter(Boolean))];
+    const cloudSumModels=[...new Set(ses.filter(s=>{const p=(s.summary_provider||'').toLowerCase(); return p && p!=='ollama';}).map(s=>(s.summary_model||'').trim()).filter(Boolean))];
+    if(!ollamaModels.length && llmCurrent.provider==='ollama') ollamaModels.push(llmCurrent.model);
+    if(!cloudSumModels.length && llmCurrent.provider==='openai') cloudSumModels.push(llmCurrent.model);
+    const cloudLabel = cloudSumModels.length ? (' + 요약(' + cloudSumModels.join(', ') + ')') : (cIn||cOut?' + 요약':'');
+    const localLabel = ollamaModels.length ? ('('+ollamaModels.join(', ')+')') : '';
     $('dCost').innerHTML =
-      '<div>☁️ <b>클라우드 LLM</b>(OpenAI Realtime + 요약): <b>'+num(cIn+cOut)+'</b> 토큰 '+
+      '<div>☁️ <b>클라우드 LLM</b>(OpenAI Realtime'+cloudLabel+'): <b>'+num(cIn+cOut)+'</b> 토큰 '+
         '<span style="color:#94a3b8">(입력 '+num(cIn)+' / 출력 '+num(cOut)+')</span> · 예상 비용 <b style="color:#fbbf24">'+fmtCost(cloudCost)+'</b></div>'+
-      '<div style="margin-top:6px">💻 <b>로컬 LLM</b>(Ollama): <b>'+num(lIn+lOut)+'</b> 토큰 '+
+      '<div style="margin-top:6px">💻 <b>로컬 LLM</b> '+localLabel+': <b>'+num(lIn+lOut)+'</b> 토큰 '+
         '<span style="color:#94a3b8">(입력 '+num(lIn)+' / 출력 '+num(lOut)+')</span> · 비용 <b style="color:#22c55e">없음</b> <span style="color:#94a3b8">(서버 자체 실행)</span></div>'+
       '<div style="color:#94a3b8;font-size:.82rem;margin-top:6px">통화 음성은 항상 ☁️ 클라우드. 통화 후 기억 요약만 선택된 LLM 사용(하이브리드).</div>';
     const sb=$('dSessions'); sb.innerHTML='';
@@ -366,12 +373,14 @@
   $('blockConfirm').onclick=async ()=>{ const reason=($('reasonText').value||'').trim(); if(!reason){ alert('차단 사유를 입력하세요.'); return; } const ok=await sendDecision(blockTargetId,'blocked',reason); if(ok) $('blockModal').hidden=true; };
 
   // LLM 선택 (하이브리드: 로컬 LLM 선택 시 통화=클라우드, 기억요약=로컬)
+  let llmCurrent = { provider:'openai', model:'gpt-4o-mini' };
   async function loadLlm(){
     const pass=getPass(); if(!pass) return;
     try{
       const r=await fetch(N8N_BASE+'/admin-llm?pass='+encodeURIComponent(pass),{ headers:{ 'ngrok-skip-browser-warning':'true' } });
       const j=await r.json().catch(()=>({})); if(!j||j.error) return;
       const cur=j.current||{provider:'openai',model:'gpt-4o-mini'};
+      llmCurrent=cur;
       const sel=$('llmSel'); let html='<optgroup label="☁️ OpenAI (클라우드)">';
       (j.openai_models||[]).forEach(m=>{ html+='<option value="openai:'+esc(m.name)+'">'+esc(m.name)+'</option>'; });
       html+='</optgroup>';

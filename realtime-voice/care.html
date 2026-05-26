@@ -204,7 +204,7 @@
     let pc=null, dc=null, micStream=null, aiBuf='', turns=[], pastMem='', endRequested=false, ending=false;
     let sessionStart=0, tokIn=0, tokOut=0, tokTotal=0, pingTimer=null;
     let silenceTimer=null, noResp=0, stopTimer=null, stopped=false;
-    let sumIn=0, sumOut=0, sumProvider='';   // 통화 후 요약 LLM 사용량(요약은 로컬/클라우드 가능)
+    let sumIn=0, sumOut=0, sumProvider='', sumModel='';   // 통화 후 요약 LLM 사용량+모델명
     // 도구 호출: 결과 제출 후 즉시 response.create (OpenAI 공식 패턴). deferred는 오히려 race 유발해 1차 응답 누락.
     const SILENCE_MS=22000;   // AI가 말한 뒤 어르신 응답을 기다리는 시간(어르신 생각·뉴스 청취 시간 고려)
     const MAX_NORESP=5;       // 이만큼 무응답이면 통화 마무리(=호출 4회 후, 약 110초 침묵 시)
@@ -222,7 +222,7 @@
     async function logSession(){
       const dur = sessionStart ? Math.round((Date.now()-sessionStart)/1000) : 0;
       if(dur < 2 && turns.length === 0) return;
-      try{ await fetch(SESSION_URL,{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ device_id:DEVICE_ID, started_at:new Date(sessionStart||Date.now()).toISOString(), ended_at:new Date().toISOString(), duration_sec:dur, turns:turns.length, input_tokens:tokIn, output_tokens:tokOut, total_tokens:tokTotal, transcript:turns.join('\n'), summary_in_tok:sumIn, summary_out_tok:sumOut, summary_provider:sumProvider }) }); }catch(e){}
+      try{ await fetch(SESSION_URL,{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ device_id:DEVICE_ID, started_at:new Date(sessionStart||Date.now()).toISOString(), ended_at:new Date().toISOString(), duration_sec:dur, turns:turns.length, input_tokens:tokIn, output_tokens:tokOut, total_tokens:tokTotal, transcript:turns.join('\n'), summary_in_tok:sumIn, summary_out_tok:sumOut, summary_provider:sumProvider, summary_model:sumModel }) }); }catch(e){}
     }
 
     // ===== 날씨 (Open-Meteo, 무료/키 불필요/CORS 허용) =====
@@ -464,13 +464,13 @@
     }
 
     async function updateMemory(){
-      sumIn=0; sumOut=0; sumProvider='';
+      sumIn=0; sumOut=0; sumProvider=''; sumModel='';
       if(turns.length < 2) return;
       const convo = turns.join('\n');
       try{
         const r = await fetch(SUMMARY_URL, { method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' },
           body: JSON.stringify({ device_id: DEVICE_ID, past: pastMem||'(없음)', convo }) });
-        if(r.ok){ const d=await r.json(); sumIn=+d.in_tok||0; sumOut=+d.out_tok||0; sumProvider=d.provider||''; const m=d&&d.memo; if(m){ saveMem(m.trim()); add('sys','📓 이번 대화를 기억에 저장했어요. ('+ (sumProvider||'?') +', '+(sumIn+sumOut)+' 토큰)'); return; } }
+        if(r.ok){ const d=await r.json(); sumIn=+d.in_tok||0; sumOut=+d.out_tok||0; sumProvider=d.provider||''; sumModel=d.model||''; const m=d&&d.memo; if(m){ saveMem(m.trim()); add('sys','📓 이번 대화를 기억에 저장했어요. ('+ (sumModel||sumProvider||'?') +', '+(sumIn+sumOut)+' 토큰)'); return; } }
       }catch{}
       saveMem((pastMem? pastMem+'\n':'')+ '[최근통화]\n'+ turns.slice(-12).join('\n'));
     }
