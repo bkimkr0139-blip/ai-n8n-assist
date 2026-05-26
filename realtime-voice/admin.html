@@ -182,7 +182,7 @@
     <div class="card" id="anByPeriod"></div>
     <h2 class="sec">지역별</h2>
     <div class="card" id="anByRegion"></div>
-    <h2 class="sec">단말기별 (행을 누르면 그 단말기로 분석)</h2>
+    <h2 class="sec">단말기별 (행을 누르면 상세 사용내역 + 해당 단말기로 분석)</h2>
     <div class="wrap"><table class="tbl"><thead><tr><th>단말기</th><th>지역</th><th>통화수</th><th>통화시간</th><th>토큰</th><th>비용</th><th>최근</th></tr></thead>
     <tbody id="anByDevice"></tbody></table></div>
   </div>
@@ -495,7 +495,7 @@
     if(!dev.length){ tb.innerHTML='<tr><td colspan="6" class="empty">데이터가 없습니다.</td></tr>'; }
     dev.forEach(d=>{ const tr=document.createElement('tr'); tr.className='click';
       tr.innerHTML='<td>'+(esc(d.name)||shortId(d.device_id))+'</td><td>'+esc(d.region||'')+'</td><td>'+num(d.sessions)+'회</td><td>'+dur(d.duration)+'</td><td>'+num(totalTok(d))+'</td><td>'+fmtCost(calcCost(d.in_tok,d.out_tok))+'</td><td>'+esc(d.last||'-')+'</td>';
-      tr.onclick=()=>{ $('anDevice').value=d.device_id; loadAnalytics(); };
+      tr.onclick=()=>{ openDetail(d.device_id); $('anDevice').value=d.device_id; loadAnalytics(); };
       tb.appendChild(tr); });
   }
   async function loadAnalytics(){
