@@ -102,12 +102,12 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://api.openai.com/v1/chat/completions",
+        "url": "={{ $json.url }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "openAiApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.3, messages: [ { role: 'user', content: $json.prompt } ] }) }}",
+        "jsonBody": "={{ $json.body }}",
         "options": {}
       },
       "credentials": {
@@ -761,6 +761,40 @@
       "parameters": {
         "jsCode": "let r={ok:false,n:0,auth:false}; try{ const j=$('삭제빌드').first().json; r.ok=!!j.ok; r.n=j.n||0; r.auth=!!j.auth; }catch(e){}\nreturn [{ json:r }];"
       }
+    },
+    {
+      "id": "95970626-7b7e-4f7f-a27a-c921e95863cb",
+      "name": "LLM설정조회",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        320,
+        60
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT provider, model, endpoint FROM llm_config WHERE id=1"
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "d763a8f2-49f2-4e43-825f-102e71201d18",
+      "name": "LLM라우팅",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        380,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const r=$input.first().json||{};\nconst provider=(r.provider||'openai').toString();\nconst model=(r.model||'gpt-4o-mini').toString();\nconst endpoint=(r.endpoint||'https://api.openai.com/v1/chat/completions').toString();\nlet prompt=''; try{ prompt=String($('요약프롬프트').first().json.prompt||''); }catch(e){}\nconst body={ model, temperature:0.3, messages:[{role:'user', content:prompt}] };\nreturn [{ json:{ url:endpoint, body:JSON.stringify(body), provider, model } }];"
+      }
     }
   ],
   "connections": {
@@ -780,17 +814,6 @@
         [
           {
             "node": "요약프롬프트",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "요약프롬프트": {
-      "main": [
-        [
-          {
-            "node": "요약호출",
             "type": "main",
             "index": 0
           }
@@ -1135,6 +1158,39 @@
         [
           {
             "node": "삭제응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "요약프롬프트": {
+      "main": [
+        [
+          {
+            "node": "LLM설정조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM설정조회": {
+      "main": [
+        [
+          {
+            "node": "LLM라우팅",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM라우팅": {
+      "main": [
+        [
+          {
+            "node": "요약호출",
             "type": "main",
             "index": 0
           }

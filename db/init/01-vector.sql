@@ -43,6 +43,17 @@ CREATE TABLE IF NOT EXISTS care_sessions (
 );
 CREATE INDEX IF NOT EXISTS care_sessions_dev_idx ON care_sessions(device_id, started_at DESC);
 
+-- LLM 라우팅 설정(단일 행). admin.html에서 변경 → care-summary 등 텍스트 작업이 해당 LLM 사용
+-- provider: 'openai' | 'ollama'.  로컬 LLM 선택 시 통화(realtime)는 클라우드 유지·요약은 로컬 → 하이브리드.
+CREATE TABLE IF NOT EXISTS llm_config (
+  id         int PRIMARY KEY DEFAULT 1,
+  provider   text DEFAULT 'openai',
+  model      text DEFAULT 'gpt-4o-mini',
+  endpoint   text DEFAULT 'https://api.openai.com/v1/chat/completions',
+  updated_at timestamptz DEFAULT now()
+);
+INSERT INTO llm_config (id) VALUES (1) ON CONFLICT DO NOTHING;
+
 -- 로컬 서버 시스템/LLM 부하 지표(단일 행, tools/metrics-agent.cjs가 /sys-push로 갱신 → admin.html 표시)
 CREATE TABLE IF NOT EXISTS sys_metrics (
   id         int PRIMARY KEY DEFAULT 1,

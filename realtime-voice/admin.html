@@ -122,6 +122,19 @@
         <span>🎟 최근 1시간 토큰 <b id="s-t1h">0</b></span>
       </div>
     </div>
+    <div class="card" id="llmCard">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <b>🧠 LLM 선택</b>
+        <span class="m2" id="llmCur">불러오는 중…</span>
+        <span style="flex:1"></span>
+        <span class="m2">💡 로컬 선택 시 통화=☁️클라우드 · 기억요약=💻로컬 (하이브리드 자동)</span>
+      </div>
+      <div class="ctrl">
+        <label>모델 <select id="llmSel"><option value="">불러오는 중…</option></select></label>
+        <button class="ghost" id="llmSave">저장</button>
+        <span class="m2" id="llmMsg"></span>
+      </div>
+    </div>
     <div class="summary">
       <div class="stat"><div class="k">접속 단말기</div><div class="v" id="s-dev">0</div></div>
       <div class="stat"><div class="k">현재 통화중</div><div class="v" id="s-on" style="color:var(--on)">0</div></div>
@@ -338,6 +351,38 @@
   $('blockModal').onclick=(e)=>{ if(e.target===$('blockModal')) $('blockModal').hidden=true; };
   $('blockConfirm').onclick=async ()=>{ const reason=($('reasonText').value||'').trim(); if(!reason){ alert('차단 사유를 입력하세요.'); return; } const ok=await sendDecision(blockTargetId,'blocked',reason); if(ok) $('blockModal').hidden=true; };
 
+  // LLM 선택 (하이브리드: 로컬 LLM 선택 시 통화=클라우드, 기억요약=로컬)
+  async function loadLlm(){
+    const pass=getPass(); if(!pass) return;
+    try{
+      const r=await fetch(N8N_BASE+'/admin-llm?pass='+encodeURIComponent(pass),{ headers:{ 'ngrok-skip-browser-warning':'true' } });
+      const j=await r.json().catch(()=>({})); if(!j||j.error) return;
+      const cur=j.current||{provider:'openai',model:'gpt-4o-mini'};
+      const sel=$('llmSel'); let html='<optgroup label="☁️ OpenAI (클라우드)">';
+      (j.openai_models||[]).forEach(m=>{ html+='<option value="openai:'+esc(m.name)+'">'+esc(m.name)+'</option>'; });
+      html+='</optgroup>';
+      if((j.ollama_models||[]).length){
+        html+='<optgroup label="💻 로컬 (Ollama)">';
+        j.ollama_models.forEach(m=>{ const mb=Math.round((m.size||0)/1048576); html+='<option value="ollama:'+esc(m.name)+'">'+esc(m.name)+(mb?(' ('+mb+'MB)'):'')+'</option>'; });
+        html+='</optgroup>';
+      }
+      sel.innerHTML=html; sel.value=cur.provider+':'+cur.model;
+      $('llmCur').textContent='현재: '+(cur.provider==='openai'?'☁️ OpenAI':'💻 로컬')+' · '+cur.model;
+    }catch(e){}
+  }
+  $('llmSave').onclick=async ()=>{
+    const pass=getPass(); if(!pass) return;
+    const v=$('llmSel').value; if(!v) return;
+    const i=v.indexOf(':'); const provider=v.slice(0,i); const model=v.slice(i+1);
+    $('llmMsg').textContent='저장 중...';
+    try{
+      const r=await fetch(N8N_BASE+'/admin-llm-set',{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ pass, provider, model }) });
+      const j=await r.json().catch(()=>({}));
+      if(j&&j.ok){ $('llmMsg').textContent='✅ 저장됨'; setTimeout(()=>{ $('llmMsg').textContent=''; },2500); loadLlm(); }
+      else $('llmMsg').textContent='❌ 실패(권한)';
+    }catch(e){ $('llmMsg').textContent='❌ 오류'; }
+  };
+
   // 서버 시스템 / LLM 부하
   function renderSys(s){
     const set=(g,b,v)=>{ const val=(v==null)?null:+v; $(g).textContent=(val==null)?'—':(val+'%'); const bar=$(b); bar.style.width=(val==null?0:Math.min(100,val))+'%'; bar.style.background=(val==null)?'#475569':(val<60?'#22c55e':val<85?'#f59e0b':'#ef4444'); };
@@ -354,7 +399,7 @@
     try{ const r=await fetch(N8N_BASE+'/admin-sys?pass='+encodeURIComponent(pass),{ headers:{ 'ngrok-skip-browser-warning':'true' } }); const j=await r.json().catch(()=>({})); if(j&&!j.error) renderSys(j); }catch(e){}
   }
   async function load(){
-    loadSys();
+    loadSys(); loadLlm();
     const res = await fetchData();
     if(res && res.error){
       if(res.error==='nopass'){ showGate(); return; }

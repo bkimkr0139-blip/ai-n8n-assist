@@ -272,6 +272,144 @@
       "parameters": {
         "jsCode": "let ok=false; try{ ok=$('시스템빌드').first().json.ok===true; }catch(e){}\nif(!ok) return [{json:{error:'unauthorized'}}];\nconst r=$input.first().json||{};\nconst nn=v=>v==null?null:(isNaN(+v)?null:+v);\nreturn [{json:{ ok:true, cpu:nn(r.cpu), mem:nn(r.mem), disk:nn(r.disk), gpu:nn(r.gpu), gpu_name:r.gpu_name||'', uptime:nn(r.uptime), host:r.host||'', updated_at:r.updated_at||null, fresh:(r.fresh===true||r.fresh==='t'), active_calls:nn(r.active_calls)||0, calls_1h:nn(r.calls_1h)||0, tokens_1h:nn(r.tokens_1h)||0 }}];"
       }
+    },
+    {
+      "id": "caf0c169-0fcb-46d1-bee4-67420d90c2c0",
+      "name": "LLM조회요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        1020
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "admin-llm",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "d2ac927d-1cb3-4f9e-b11e-2efac92762ab"
+    },
+    {
+      "id": "64fa8b26-e4f1-4320-acd5-d5df31fa98a7",
+      "name": "LLM설정쿼리",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        1020
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT provider, model, endpoint FROM llm_config WHERE id=1"
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "67f72020-6fc0-437c-8ace-964d7997b604",
+      "name": "Ollama목록",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        1020
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://127.0.0.1:11434/api/tags",
+        "options": {
+          "timeout": 3000
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "0984547c-4b51-4b12-a1bd-1a2767bdd496",
+      "name": "LLM조회응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1020
+      ],
+      "parameters": {
+        "jsCode": "const pass=(($('LLM조회요청').first().json.query)||{}).pass||'';\nif(String(pass)!=='CHANGE_ME_ADMIN_PASS') return [{json:{error:'unauthorized'}}];\nlet cfg={provider:'openai',model:'gpt-4o-mini',endpoint:'https://api.openai.com/v1/chat/completions'};\ntry{ const c=$('LLM설정쿼리').first().json; if(c&&c.provider){ cfg={provider:c.provider,model:c.model,endpoint:c.endpoint}; } }catch(e){}\nlet ollama=[]; try{ const o=$input.first().json; if(o&&Array.isArray(o.models)) ollama=o.models.map(m=>({name:m.name, size:m.size||0})); }catch(e){}\nreturn [{json:{ ok:true, current:cfg, ollama_models:ollama, openai_models:[{name:'gpt-4o-mini'},{name:'gpt-4o'}] }}];"
+      }
+    },
+    {
+      "id": "222cb324-b4b4-43bb-98ab-6e4422bfb55d",
+      "name": "LLM설정요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        1240
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin-llm-set",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "923007d2-fdc5-491f-ae55-8dd0886a09a0"
+    },
+    {
+      "id": "9848c5d6-348f-4e6b-866a-fe4ee9fe19c7",
+      "name": "LLM설정빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        1240
+      ],
+      "parameters": {
+        "jsCode": "const b=($input.first().json.body)||{};\nif(String(b.pass||'')!=='CHANGE_ME_ADMIN_PASS') return [{json:{query:\"SELECT 1 WHERE false\", ok:false, auth:false}}];\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst provider=esc(b.provider||'openai');\nconst model=esc(b.model||'gpt-4o-mini');\nlet endpoint=(b.endpoint||'').toString().trim();\nif(!endpoint) endpoint = (b.provider==='ollama') ? 'http://127.0.0.1:11434/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';\nendpoint=esc(endpoint);\nif(!provider||!model) return [{json:{query:\"SELECT 1 WHERE false\", ok:false, auth:true}}];\nconst q=\"INSERT INTO llm_config (id,provider,model,endpoint,updated_at) VALUES (1,'\"+provider+\"','\"+model+\"','\"+endpoint+\"',now()) ON CONFLICT (id) DO UPDATE SET provider='\"+provider+\"',model='\"+model+\"',endpoint='\"+endpoint+\"',updated_at=now()\";\nreturn [{json:{query:q, ok:true, auth:true}}];"
+      }
+    },
+    {
+      "id": "4af020e4-856e-49f9-af96-3d29acbddf00",
+      "name": "LLM설정실행",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        1240
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "06c67cb6-3d37-4609-b58f-bc3edede5d95",
+      "name": "LLM설정응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1240
+      ],
+      "parameters": {
+        "jsCode": "let r={ok:false,auth:false}; try{ const j=$('LLM설정빌드').first().json; r.ok=!!j.ok; r.auth=!!j.auth; }catch(e){}\nreturn [{json:r}];"
+      }
     }
   ],
   "connections": {
@@ -401,6 +539,72 @@
         [
           {
             "node": "시스템응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM조회요청": {
+      "main": [
+        [
+          {
+            "node": "LLM설정쿼리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM설정쿼리": {
+      "main": [
+        [
+          {
+            "node": "Ollama목록",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama목록": {
+      "main": [
+        [
+          {
+            "node": "LLM조회응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM설정요청": {
+      "main": [
+        [
+          {
+            "node": "LLM설정빌드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM설정빌드": {
+      "main": [
+        [
+          {
+            "node": "LLM설정실행",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM설정실행": {
+      "main": [
+        [
+          {
+            "node": "LLM설정응답",
             "type": "main",
             "index": 0
           }
