@@ -203,6 +203,9 @@
 
     let pc=null, dc=null, micStream=null, aiBuf='', turns=[], pastMem='', endRequested=false, ending=false;
     let sessionStart=0, tokIn=0, tokOut=0, tokTotal=0, pingTimer=null;
+    let silenceTimer=null, noResp=0, stopTimer=null, stopped=false;
+    const SILENCE_MS=10000;   // AI가 말한 뒤 어르신 응답을 기다리는 시간
+    const MAX_NORESP=3;       // 이만큼 무응답이면(=호출 2회 후) 통화 마무리
     const setStatus = (s)=> els.status.textContent = s;
     function add(cls, text){ const d=document.createElement('div'); d.className='msg '+cls; d.textContent=text; els.log.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'end'}); }
     function loadMem(){ try { return localStorage.getItem(MEM_KEY)||''; } catch { return ''; } }
@@ -378,10 +381,30 @@
     loadVoice();
     if(els.vfilter){ els.vfilter.onchange=vfStateText; els.relearn.onclick=()=>{ clearVoice(); learnUntil=Date.now()+2500; vfStateText(); add('sys','🎤 다음에 말씀하시면 목소리를 다시 학습합니다.'); }; vfStateText(); }
 
+    // ===== 무응답(침묵) 감지: 어르신 응답 없으면 불러보고, 계속 없으면 마무리 =====
+    function clearSilence(){ if(silenceTimer){ clearTimeout(silenceTimer); silenceTimer=null; } }
+    function armSilence(){ clearSilence(); if(ending||stopped) return; silenceTimer=setTimeout(onSilence, SILENCE_MS); }
+    function scheduleStop(ms){ if(stopTimer) clearTimeout(stopTimer); stopTimer=setTimeout(()=>stop(), ms); }
+    function sayOnce(instr){ try{ dc.send(JSON.stringify({ type:'response.create', response:{ instructions: instr } })); }catch(e){} }
+    function onSilence(){
+      if(ending||stopped) return; clearSilence(); noResp++;
+      if(noResp>=MAX_NORESP){
+        ending=true; setStatus('응답이 없어 통화를 마무리하는 중이에요...');
+        sayOnce('어르신이 계속 대답이 없으십니다. "어르신, 지금 바쁘신 것 같으니 다음에 다시 연결드릴게요. 안녕히 계세요." 라고 따뜻하고 짧게 인사만 하고 마무리하세요.');
+        scheduleStop(11000); // 인사가 안 나오면 대비한 안전 종료
+      } else if(noResp===1){
+        setStatus('어르신 응답을 기다리는 중...');
+        sayOnce('어르신이 지금 대답이 없으십니다. 다정하게 한 번 더 "여보세요? 어르신, 듣고 계세요?" 하고 짧게 여쭤보세요.');
+      } else {
+        setStatus('어르신 응답을 기다리는 중...');
+        sayOnce('어르신이 여전히 대답이 없으십니다. 걱정스러운 듯 따뜻하게 "어르신, 괜찮으세요? 제 목소리 들리시나요?" 하고 짧게 한 번 더 여쭤보세요.');
+      }
+    }
+
     async function start(){
       saveProfile();
       els.start.disabled = true; turns = []; endRequested=false; ending=false;
-      sessionStart = Date.now(); tokIn=0; tokOut=0; tokTotal=0;
+      sessionStart = Date.now(); tokIn=0; tokOut=0; tokTotal=0; noResp=0; stopped=false; clearSilence();
       // 서버(n8n)에서 단기 접속 토큰 발급 — API 키는 서버에만 있고 브라우저로 내려오지 않음
       let token='', tj=null;
       try { setStatus('🔑 연결 준비 중...'); const tr=await fetch(TOKEN_URL,{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ device_id:DEVICE_ID }) }); if(tr.ok){ tj=await tr.json(); token=(tj&&tj.value)||''; } }
@@ -399,10 +422,13 @@
       dc.onopen = ()=>{ setStatus('🟢 연결됐어요 — 편하게 말씀하세요'); try{ dc.send(JSON.stringify(sessionConfig())); }catch{}; try{ dc.send(JSON.stringify({type:'response.create'})); }catch{}; add('sys', pastMem ? '이전 대화를 기억하고 있어요. 안부를 나눠요.' : '첫 통화예요. 밝게 인사드릴게요.'); };
       dc.onmessage = (e)=>{ let ev; try{ ev=JSON.parse(e.data); }catch{ return; } const t=ev.type||'';
         if(t==='response.output_item.done' && ev.item && ev.item.type==='function_call'){ handleFunctionCall(ev.item); return; }
-        if(t.indexOf('input_audio_transcription')>=0 && t.endsWith('.completed')){ if(ev.transcript){ const s=ev.transcript.trim(); add('me','🗣️ '+s); turns.push('어르신: '+s); if(isEndIntent(s)) endRequested=true; } }
-        else if(t.endsWith('audio_transcript.delta')){ aiBuf += (ev.delta||''); }
+        if(t.indexOf('input_audio_transcription')>=0 && t.endsWith('.completed')){ if(ev.transcript){ const s=ev.transcript.trim(); clearSilence(); noResp=0; add('me','🗣️ '+s); turns.push('어르신: '+s); if(isEndIntent(s)) endRequested=true; } }
+        else if(t.endsWith('audio_transcript.delta')){ aiBuf += (ev.delta||''); clearSilence(); }
         else if(t.endsWith('audio_transcript.done')){ const s=(ev.transcript||aiBuf).trim(); if(s){ add('ai','💚 '+s); turns.push('도우미: '+s); } aiBuf='';
-          if(endRequested && !ending){ ending=true; setStatus('통화를 마무리하는 중이에요...'); setTimeout(()=>stop(), Math.max(2500, s.length*130)); } }
+          if(endRequested && !ending){ ending=true; setStatus('통화를 마무리하는 중이에요...'); scheduleStop(Math.max(2500, s.length*130)); }
+          else if(ending){ scheduleStop(Math.max(1800, s.length*120)); }   // 마무리 인사 끝 → 종료
+          else { armSilence(); }   // AI가 말 마침 → 어르신 응답 대기 시작
+        }
         else if(t==='response.done'){ const u=ev.response&&ev.response.usage; if(u){ tokIn+=(u.input_tokens||0); tokOut+=(u.output_tokens||0); tokTotal+=(u.total_tokens||0); } }
         else if(t==='error'){ add('sys','⚠️ '+JSON.stringify(ev.error||ev)); }
       };
@@ -429,8 +455,8 @@
       saveMem((pastMem? pastMem+'\n':'')+ '[최근통화]\n'+ turns.slice(-12).join('\n'));
     }
 
-    function cleanup(){ if(pingTimer){ clearInterval(pingTimer); pingTimer=null; } stopVoiceFilter(); try{if(dc)dc.close();}catch{} try{if(pc)pc.close();}catch{} try{if(micStream)micStream.getTracks().forEach(t=>t.stop());}catch{} pc=dc=micStream=null; els.start.disabled=false; els.stop.disabled=true; }
-    async function stop(){ setStatus('통화를 정리하고 기억에 저장하는 중...'); cleanup(); await logSession(); await updateMemory(); setStatus('■ 통화가 끝났어요. 수고하셨습니다.'); }
+    function cleanup(){ clearSilence(); if(pingTimer){ clearInterval(pingTimer); pingTimer=null; } stopVoiceFilter(); try{if(dc)dc.close();}catch{} try{if(pc)pc.close();}catch{} try{if(micStream)micStream.getTracks().forEach(t=>t.stop());}catch{} pc=dc=micStream=null; els.start.disabled=false; els.stop.disabled=true; }
+    async function stop(){ if(stopped) return; stopped=true; clearSilence(); if(stopTimer){ clearTimeout(stopTimer); stopTimer=null; } setStatus('통화를 정리하고 기억에 저장하는 중...'); cleanup(); await logSession(); await updateMemory(); setStatus('■ 통화가 끝났어요. 수고하셨습니다.'); }
     els.start.onclick = start; els.stop.onclick = ()=>{ ending=true; stop(); };
   </script>
 </body>
