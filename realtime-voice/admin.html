@@ -3,28 +3,28 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#1e3a8a" />
+<meta name="theme-color" content="#0b1426" />
 <title>돌봄 통합 관리자 — 접속 모니터링</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
   :root{
-    color-scheme: light;
-    /* 공공기관 신뢰감 라이트 팔레트 — 딥 네이비 + 화이트 + 골드 액센트 */
-    --bg-1:#f4f7fc; --bg-2:#eaf0f9;
-    --surface:#ffffff; --surface-2:#f7faff; --surface-3:#eef2fa; --surface-4:#f9fbfe;
-    --line:#dfe5ef; --line-soft:#eaeff7;
-    --txt:#0f1729; --txt-2:#324158; --mut:#6b7790;
-    --primary:#1e3a8a; --primary-2:#1d4ed8; --primary-3:#2563eb;
-    --primary-soft:#dbe4f6; --primary-strong:#172554;
-    --accent:#2563eb; --accent-2:#3b82f6;
-    --gold:#b45309; --gold-soft:#fef3c7;
-    --primary-grad: linear-gradient(135deg,#1e3a8a 0%,#2563eb 50%,#3b82f6 100%);
-    --gold-grad: linear-gradient(135deg,#b45309 0%,#d97706 100%);
-    --on:#16a34a; --off:#94a3b8; --warn:#d97706; --danger:#dc2626;
-    --shadow-sm: 0 1px 2px rgba(15,23,41,.04), 0 1px 3px rgba(15,23,41,.06);
-    --shadow-md: 0 6px 20px rgba(30,58,138,.08), 0 2px 6px rgba(15,23,41,.05);
-    --shadow-lg: 0 18px 48px rgba(30,58,138,.14), 0 6px 16px rgba(15,23,41,.08);
+    color-scheme: dark;
+    /* 공공기관 프리미엄 다크 팔레트 — 깊은 네이비/슬레이트 + 골드 액센트 */
+    --bg-1:#0e1830; --bg-2:#0a1224;
+    --surface:#16223c; --surface-2:#1c2a48; --surface-3:#243355; --surface-4:#0b1428;
+    --line:#2a3a5e; --line-soft:#1e2a48;
+    --txt:#eaf0fa; --txt-2:#b9c3d6; --mut:#7e8aa6;
+    --primary:#3d7be8; --primary-2:#5b8df0; --primary-3:#7da3f4;
+    --primary-soft:#1f2e54; --primary-strong:#c7d6f5;
+    --accent:#5b8df0; --accent-2:#7da3f4;
+    --gold:#d4a056; --gold-2:#e3b773; --gold-soft:rgba(212,160,86,.16);
+    --primary-grad: linear-gradient(135deg,#3d7be8 0%,#5b8df0 50%,#7da3f4 100%);
+    --gold-grad: linear-gradient(135deg,#b8862a 0%,#d4a056 50%,#e3b773 100%);
+    --on:#22c55e; --off:#475569; --warn:#f59e0b; --danger:#f87171;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.22);
+    --shadow-md: 0 10px 28px rgba(0,0,0,.42), 0 3px 8px rgba(0,0,0,.28);
+    --shadow-lg: 0 22px 56px rgba(0,0,0,.55), 0 8px 20px rgba(0,0,0,.35);
     --r-sm:10px; --r-md:14px; --r-lg:18px; --r-xl:22px;
   }
   *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
@@ -34,23 +34,23 @@
     font-family:'Pretendard Variable','Pretendard',system-ui,-apple-system,'Segoe UI','Malgun Gothic',sans-serif;
     color:var(--txt);
     background:
-      radial-gradient(1200px 600px at 0% -10%, rgba(30,58,138,.05), transparent 60%),
-      radial-gradient(900px 600px at 100% 0%, rgba(37,99,235,.04), transparent 50%),
+      radial-gradient(1200px 600px at 0% -10%, rgba(61,123,232,.10), transparent 60%),
+      radial-gradient(900px 600px at 100% 0%, rgba(212,160,86,.07), transparent 50%),
       linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
     min-height:100vh;
     -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
     font-feature-settings:'tnum','ss01';
     letter-spacing:-.005em;
   }
-  /* 상단 권위 막대(공공기관 사이트 공통 요소) */
-  body::before{ content:''; position:fixed; top:0; left:0; right:0; height:4px; background: var(--primary-grad); z-index:50; }
+  /* 상단 권위 막대(공공기관 사이트 공통 요소) — 골드 그라데 */
+  body::before{ content:''; position:fixed; top:0; left:0; right:0; height:3px; background: var(--gold-grad); z-index:50; box-shadow: 0 0 12px rgba(212,160,86,.4); }
   header{
-    padding:18px 26px; backdrop-filter:saturate(140%) blur(10px);
-    background: rgba(255,255,255,.92);
+    padding:18px 26px; backdrop-filter:saturate(140%) blur(12px);
+    background: linear-gradient(180deg, rgba(14,24,48,.92) 0%, rgba(14,24,48,.78) 100%);
     border-bottom:1px solid var(--line);
     display:flex; align-items:center; gap:14px; flex-wrap:wrap;
-    position:sticky; top:4px; z-index:10;
-    box-shadow: 0 1px 0 rgba(15,23,41,.02);
+    position:sticky; top:3px; z-index:10;
+    box-shadow: 0 1px 0 rgba(255,255,255,.04);
   }
   header h1{
     font-size:1.12rem; margin:0; font-weight:800; letter-spacing:-.02em;
@@ -68,27 +68,27 @@
   header .sp{ flex:1; }
   .pill{
     font-size:.78rem; color:var(--txt-2);
-    border:1px solid var(--line); background: var(--surface-3);
+    border:1px solid var(--line); background: rgba(28,42,72,.55);
     border-radius:999px; padding:5px 12px;
     display:inline-flex; align-items:center; gap:6px; font-weight:600;
   }
-  .pill.gold{ background: var(--gold-soft); border-color: rgba(180,83,9,.25); color: var(--gold); }
+  .pill.gold{ background: var(--gold-soft); border-color: rgba(212,160,86,.35); color: var(--gold-2); }
   button{
     font-family:inherit; background: var(--primary-grad); color:#fff; border:0;
     border-radius:10px; padding:9px 14px; font-weight:700; cursor:pointer; letter-spacing:-.01em;
     transition: transform .08s, filter .15s, box-shadow .15s;
-    box-shadow: 0 4px 12px rgba(30,58,138,.25);
+    box-shadow: 0 4px 14px rgba(61,123,232,.32);
   }
   button:hover{ filter:brightness(1.08); }
   button:active{ transform: translateY(1px); }
-  button.ghost{ background: #fff; color: var(--primary); border:1px solid var(--line); font-weight:600; box-shadow:none; }
+  button.ghost{ background: rgba(28,42,72,.6); color: var(--txt); border:1px solid var(--line); font-weight:600; box-shadow:none; }
   button.ghost:hover{ background: var(--surface-3); border-color: var(--primary); }
   input, select{
-    font-family:inherit; background: #fff; color: var(--txt);
+    font-family:inherit; background: var(--surface-4); color: var(--txt);
     border:1px solid var(--line); border-radius:10px; padding:11px 13px; font-size:1rem;
     transition: border-color .15s, box-shadow .15s;
   }
-  input:focus, select:focus{ outline:none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(30,58,138,.18); }
+  input:focus, select:focus{ outline:none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(61,123,232,.25); }
   main{ padding:20px; max-width:1180px; margin:0 auto; }
   /* gate */
   #gate{
@@ -179,7 +179,7 @@
   .wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:14px; }
   .empty{ color: var(--mut); padding:24px; text-align:center; font-size:.92rem; }
   /* modal */
-  .modal{ position:fixed; inset:0; background: rgba(15,23,41,.55); backdrop-filter: blur(6px); display:flex; align-items:flex-end; justify-content:center; z-index:30; }
+  .modal{ position:fixed; inset:0; background: rgba(5,10,22,.78); backdrop-filter: blur(8px); display:flex; align-items:flex-end; justify-content:center; z-index:30; }
   .sheet{
     background: var(--surface); width:100%; max-width:780px; max-height:90vh; overflow:auto;
     border-radius:22px 22px 0 0; padding:24px; border:1px solid var(--line);
@@ -194,17 +194,17 @@
   .closebar{ display:flex; justify-content:flex-end; margin-bottom:10px; }
   /* tabs */
   .tab{
-    background: #fff; color: var(--txt-2); border:1px solid var(--line);
+    background: rgba(28,42,72,.4); color: var(--txt-2); border:1px solid var(--line);
     border-radius:999px; padding:7px 16px; font-size:.9rem; font-weight:700; box-shadow:none;
     transition: background .15s, color .15s, border-color .15s;
   }
   .tab.active{
-    background: var(--primary-grad); color:#fff; border-color:transparent; box-shadow: 0 4px 12px rgba(30,58,138,.32);
+    background: var(--primary-grad); color:#fff; border-color:transparent; box-shadow: 0 4px 14px rgba(61,123,232,.38);
   }
   /* analytics controls */
   .ctrl{ display:flex; gap:16px; flex-wrap:wrap; align-items:center; }
   .ctrl label{ display:flex; align-items:center; gap:8px; font-weight:600; font-size:.92rem; color: var(--txt-2); }
-  .ctrl select{ background: #fff; color: var(--txt); border:1px solid var(--line); border-radius:10px; padding:8px 12px; font-size:.95rem; font-family:inherit; }
+  .ctrl select{ background: var(--surface-4); color: var(--txt); border:1px solid var(--line); border-radius:10px; padding:8px 12px; font-size:.95rem; font-family:inherit; }
   /* bars */
   .barrow{ display:flex; align-items:center; gap:12px; margin:6px 0; }
   .barlabel{ width:128px; flex:0 0 auto; font-size:.86rem; color: var(--txt-2); text-align:right; font-weight:500; }
