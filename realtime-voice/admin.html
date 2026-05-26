@@ -302,14 +302,8 @@
     $('dTitle').textContent = (d.name||'(이름 미설정)')+' — '+ (d.region||'');
     $('dSub').textContent = '단말기 '+shortId(deviceId)+' · 통화 '+num(d.sessions)+'회 · 누적 '+dur(d.total_duration)+' · 토큰 '+num(d.total_tokens)+' · 최근 '+rel(d.last_ping||d.last_at);
     $('dMemo').textContent = d.memo || '(아직 기억이 없습니다)';
-    // 클라우드 vs 로컬 토큰 분리: realtime(input/output_tokens)은 항상 클라우드. 요약(summary_*)은 provider별.
-    let cIn=0,cOut=0,lIn=0,lOut=0;
-    ses.forEach(s=>{
-      cIn += +s.input_tokens||0; cOut += +s.output_tokens||0;
-      const sp=(s.summary_provider||'').toLowerCase();
-      if(sp==='ollama'){ lIn += +s.summary_in_tok||0; lOut += +s.summary_out_tok||0; }
-      else { cIn += +s.summary_in_tok||0; cOut += +s.summary_out_tok||0; }
-    });
+    // 클라우드 vs 로컬 토큰: 서버 집계값(d.in_tok=클라우드 전체, d.local_*_tok=로컬 요약)을 그대로 사용 → 분석/대시보드와 숫자 일치.
+    const cIn=+d.in_tok||0, cOut=+d.out_tok||0, lIn=+d.local_in_tok||0, lOut=+d.local_out_tok||0;
     const cloudCost=calcCost(cIn,cOut);
     $('dCost').innerHTML =
       '<div>☁️ <b>클라우드 LLM</b>(OpenAI Realtime + 요약): <b>'+num(cIn+cOut)+'</b> 토큰 '+
@@ -472,7 +466,8 @@
     rsel.innerHTML='<option value="">전체 지역</option>'+regions.map(r=>'<option value="'+esc(r)+'">'+esc(r)+'</option>').join('');
     rsel.value=rcur;
   }
-  function metricVal(d){ return anState.metric==='duration'?(+d.duration||0): anState.metric==='tokens'?(+d.tokens||0): anState.metric==='cost'?calcCost(d.in_tok,d.out_tok):(+d.sessions||0); }
+  function totalTok(d){ return (+d.in_tok||0)+(+d.out_tok||0)+(+d.local_in_tok||0)+(+d.local_out_tok||0); }
+  function metricVal(d){ return anState.metric==='duration'?(+d.duration||0): anState.metric==='tokens'?totalTok(d): anState.metric==='cost'?calcCost(d.in_tok,d.out_tok):(+d.sessions||0); }
   function metricFmt(v){ return anState.metric==='duration'?dur(v): anState.metric==='tokens'?num(v): anState.metric==='cost'?fmtCost(v): num(v)+'회'; }
   function fmtBucket(b){ const p=anState.period; if(!b) return b; const y=b.slice(0,4), mo=+b.slice(5,7); if(p==='year') return y+'년'; if(p==='quarter') return y+' '+(Math.floor((mo-1)/3)+1)+'분기'; if(p==='month') return b.slice(0,7); if(p==='week') return b.slice(5)+' 주'; return b.slice(5); }
   function bars(containerId, rows, labelFn){
@@ -488,7 +483,7 @@
     const dev=anData.byDevice||[];
     $('a-ses').textContent=num(dev.reduce((a,d)=>a+(+d.sessions||0),0));
     $('a-dur').textContent=dur(dev.reduce((a,d)=>a+(+d.duration||0),0));
-    $('a-tok').textContent=num(dev.reduce((a,d)=>a+(+d.tokens||0),0));
+    $('a-tok').textContent=num(dev.reduce((a,d)=>a+totalTok(d),0));
     $('a-cost').textContent=fmtCost(dev.reduce((a,d)=>a+calcCost(d.in_tok,d.out_tok),0));
     $('a-dev').textContent=num(dev.length);
     const pl={day:'일',week:'주',month:'월',quarter:'분기',year:'년'}[anState.period]||'';
@@ -499,7 +494,7 @@
     const tb=$('anByDevice'); tb.innerHTML='';
     if(!dev.length){ tb.innerHTML='<tr><td colspan="6" class="empty">데이터가 없습니다.</td></tr>'; }
     dev.forEach(d=>{ const tr=document.createElement('tr'); tr.className='click';
-      tr.innerHTML='<td>'+(esc(d.name)||shortId(d.device_id))+'</td><td>'+esc(d.region||'')+'</td><td>'+num(d.sessions)+'회</td><td>'+dur(d.duration)+'</td><td>'+num(d.tokens)+'</td><td>'+fmtCost(calcCost(d.in_tok,d.out_tok))+'</td><td>'+esc(d.last||'-')+'</td>';
+      tr.innerHTML='<td>'+(esc(d.name)||shortId(d.device_id))+'</td><td>'+esc(d.region||'')+'</td><td>'+num(d.sessions)+'회</td><td>'+dur(d.duration)+'</td><td>'+num(totalTok(d))+'</td><td>'+fmtCost(calcCost(d.in_tok,d.out_tok))+'</td><td>'+esc(d.last||'-')+'</td>';
       tr.onclick=()=>{ $('anDevice').value=d.device_id; loadAnalytics(); };
       tb.appendChild(tr); });
   }

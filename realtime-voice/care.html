@@ -68,7 +68,7 @@
       </div>
     </div>
     <div class="row" style="margin-top:10px; align-items:center; gap:12px; flex-wrap:wrap">
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600"><input type="checkbox" id="vfilter" checked style="width:18px;height:18px" /> 어르신 목소리만 듣기 (TV·잡음 필터)</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600"><input type="checkbox" id="vfilter" style="width:18px;height:18px" /> 어르신 목소리만 듣기 (TV·잡음 필터)</label>
       <button id="relearn" class="small" type="button">🎤 목소리 다시 학습</button>
       <span id="vstate" style="font-size:.9rem; color:#0a7d33"></span>
     </div>
@@ -205,6 +205,7 @@
     let sessionStart=0, tokIn=0, tokOut=0, tokTotal=0, pingTimer=null;
     let silenceTimer=null, noResp=0, stopTimer=null, stopped=false;
     let sumIn=0, sumOut=0, sumProvider='';   // 통화 후 요약 LLM 사용량(요약은 로컬/클라우드 가능)
+    let pendingFC=0;   // 도구 호출 후 다음 response.create는 response.done이 끝나기를 기다림(타이밍 충돌 방지)
     const SILENCE_MS=22000;   // AI가 말한 뒤 어르신 응답을 기다리는 시간(어르신 생각·뉴스 청취 시간 고려)
     const MAX_NORESP=5;       // 이만큼 무응답이면 통화 마무리(=호출 4회 후, 약 110초 침묵 시)
     const setStatus = (s)=> els.status.textContent = s;
@@ -274,10 +275,21 @@
       description:'지금 현재 날짜·시간·요일을 알려준다. 어르신이 시간/날짜/요일/며칠/무슨 요일인지, 또는 약 드실 시간인지 물으면 반드시 이 도구를 호출해 그 결과(실제 현재 시각)로 답하라. 시간을 추측하지 말 것.',
       parameters:{ type:'object', properties:{}, required:[] } }; }
 
-    // 한국어 + 영어 종료 의도(영어는 소문자로 비교)
-    const END_WORDS = ['끊','그만','이만','들어가','안녕히','수고했','수고하','잘 있','다음에 봐',
-      'bye','goodbye','good bye','see you','hang up','gotta go','talk later','that\'s all','i\'m done'];
-    function isEndIntent(t){ const s=(t||'').toLowerCase(); return END_WORDS.some(w => s.indexOf(w) >= 0); }
+    // 한국어 + 영어 종료 의도. 정밀 매칭(substring으로 "그만큼/이만큼" 오탐 방지).
+    const END_PATTERNS = [
+      /끊\s*(을게|을래|어요?|자|어줘|을게요|는다|을래요|어주세)/,
+      /그만\s*(할게|해요?|할래|하자|두자|할래요|하시|하세|두|둘)/,
+      /이만(\s|$|끊|가|들어|마칠|마무리|쉴|줄|할)/,
+      /들어가\s*(볼|봐|야|볼게|볼래|볼게요)/,
+      /안녕히\s*(계세|가세)/,
+      /수고(했|하셨|하셔)/,
+      /잘\s*(있어요?|계세요?|계셔)/,
+      /다음에\s*(봐|뵙|연락|만나)/,
+      /(전화|통화)\s*(끊|마칠|마무리|그만)/,
+      /바이바이|바이\s*$/,
+      /\b(bye|goodbye|good\s*bye|see\s*you|hang\s*up|gotta\s*go|talk\s*later|that.?s\s*all|i.?m\s*done)\b/i
+    ];
+    function isEndIntent(t){ const s=(t||'').toString().trim(); return END_PATTERNS.some(re=>re.test(s)); }
 
     function buildInstructions(){
       pastMem = loadMem();
@@ -313,7 +325,8 @@
       else if(item.name==='get_news'){ setStatus('📰 뉴스 확인 중...'); out = await getNews(args.topic); add('sys','📰 '+out); }
       else if(item.name==='get_time'){ out = getTimeNow(); add('sys','🕐 '+out); }
       else out = '지원하지 않는 기능입니다.';
-      try{ dc.send(JSON.stringify({ type:'conversation.item.create', item:{ type:'function_call_output', call_id:item.call_id, output: out } })); dc.send(JSON.stringify({ type:'response.create' })); }catch{}
+      // 결과 제출은 즉시. response.create는 response.done에서 트리거(현 응답이 끝난 뒤). 동시 response 충돌 방지.
+      try{ dc.send(JSON.stringify({ type:'conversation.item.create', item:{ type:'function_call_output', call_id:item.call_id, output: out } })); pendingFC++; }catch{}
     }
 
     // ===== 어르신 목소리 학습 + 화자 필터 (피치 기반 게이트) =====
@@ -408,7 +421,7 @@
     async function start(){
       saveProfile();
       els.start.disabled = true; turns = []; endRequested=false; ending=false;
-      sessionStart = Date.now(); tokIn=0; tokOut=0; tokTotal=0; noResp=0; stopped=false; clearSilence();
+      sessionStart = Date.now(); tokIn=0; tokOut=0; tokTotal=0; noResp=0; stopped=false; pendingFC=0; clearSilence();
       // 서버(n8n)에서 단기 접속 토큰 발급 — API 키는 서버에만 있고 브라우저로 내려오지 않음
       let token='', tj=null;
       try { setStatus('🔑 연결 준비 중...'); const tr=await fetch(TOKEN_URL,{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ device_id:DEVICE_ID }) }); if(tr.ok){ tj=await tr.json(); token=(tj&&tj.value)||''; } }
@@ -433,7 +446,7 @@
           else if(ending){ scheduleStop(Math.max(1800, s.length*120)); }   // 마무리 인사 끝 → 종료
           else { armSilence(); }   // AI가 말 마침 → 어르신 응답 대기 시작
         }
-        else if(t==='response.done'){ const u=ev.response&&ev.response.usage; if(u){ tokIn+=(u.input_tokens||0); tokOut+=(u.output_tokens||0); tokTotal+=(u.total_tokens||0); } }
+        else if(t==='response.done'){ const u=ev.response&&ev.response.usage; if(u){ tokIn+=(u.input_tokens||0); tokOut+=(u.output_tokens||0); tokTotal+=(u.total_tokens||0); } if(pendingFC>0){ pendingFC--; try{ dc.send(JSON.stringify({ type:'response.create' })); }catch{} } }
         else if(t==='error'){ add('sys','⚠️ '+JSON.stringify(ev.error||ev)); }
       };
       pc.onconnectionstatechange = ()=>{ if(['failed','disconnected','closed'].includes(pc.connectionState) && !ending) setStatus('통화가 종료되었어요 ('+pc.connectionState+')'); };
