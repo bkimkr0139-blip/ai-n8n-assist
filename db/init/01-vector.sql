@@ -42,3 +42,16 @@ CREATE TABLE IF NOT EXISTS care_sessions (
   created_at    timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS care_sessions_dev_idx ON care_sessions(device_id, started_at DESC);
+
+-- 로컬 서버 시스템/LLM 부하 지표(단일 행, tools/metrics-agent.cjs가 /sys-push로 갱신 → admin.html 표시)
+CREATE TABLE IF NOT EXISTS sys_metrics (
+  id         int PRIMARY KEY DEFAULT 1,
+  cpu        numeric,
+  mem        numeric,
+  disk       numeric,
+  gpu        numeric,
+  gpu_name   text DEFAULT '',
+  uptime     bigint,
+  host       text DEFAULT '',
+  updated_at timestamptz DEFAULT now()
+);

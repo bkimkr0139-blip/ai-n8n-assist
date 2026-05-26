@@ -153,6 +153,125 @@
           "name": "pgvector RAG (n8n_rag)"
         }
       }
+    },
+    {
+      "id": "284537e5-7c16-4b90-80ae-7a191274875f",
+      "name": "지표수신",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        560
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sys-push",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "a5b588be-a47f-400d-9dcf-408c4a90036c"
+    },
+    {
+      "id": "2f038478-2732-4ed9-a3c0-bc76bb522c67",
+      "name": "지표저장빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        560
+      ],
+      "parameters": {
+        "jsCode": "const b=($input.first().json.body)||{};\nif(String(b.key||'')!=='sysmetrics2026') return [{json:{query:\"SELECT 1 WHERE false\"}}];\nconst num=v=>{ const x=parseFloat(v); return isNaN(x)?'NULL':x; };\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst q=\"INSERT INTO sys_metrics (id,cpu,mem,disk,gpu,gpu_name,uptime,host,updated_at) VALUES (1,\"+num(b.cpu)+\",\"+num(b.mem)+\",\"+num(b.disk)+\",\"+num(b.gpu)+\",'\"+esc(b.gpu_name)+\"',\"+num(b.uptime)+\",'\"+esc(b.host)+\"',now()) ON CONFLICT (id) DO UPDATE SET cpu=EXCLUDED.cpu,mem=EXCLUDED.mem,disk=EXCLUDED.disk,gpu=EXCLUDED.gpu,gpu_name=EXCLUDED.gpu_name,uptime=EXCLUDED.uptime,host=EXCLUDED.host,updated_at=now()\";\nreturn [{json:{query:q}}];"
+      }
+    },
+    {
+      "id": "65e87439-6147-4874-abbe-15dda1fd704b",
+      "name": "지표저장",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        560
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "fbb80bec-50f7-4ff1-9029-4663bb2ff163",
+      "name": "시스템요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        780
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "admin-sys",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "2b71dc88-2a47-4735-ae53-9efc39076275"
+    },
+    {
+      "id": "f352f91d-c473-4841-ac87-93c82469ffb7",
+      "name": "시스템빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        780
+      ],
+      "parameters": {
+        "jsCode": "const q=($input.first().json.query)||{};\nconst ok=(String(q.pass||'')==='CHANGE_ME_ADMIN_PASS');\nconst sql=\"SELECT (SELECT cpu FROM sys_metrics WHERE id=1) AS cpu,(SELECT mem FROM sys_metrics WHERE id=1) AS mem,(SELECT disk FROM sys_metrics WHERE id=1) AS disk,(SELECT gpu FROM sys_metrics WHERE id=1) AS gpu,(SELECT gpu_name FROM sys_metrics WHERE id=1) AS gpu_name,(SELECT uptime FROM sys_metrics WHERE id=1) AS uptime,(SELECT host FROM sys_metrics WHERE id=1) AS host,(SELECT to_char(updated_at AT TIME ZONE 'Asia/Seoul','MM-DD HH24:MI:SS') FROM sys_metrics WHERE id=1) AS updated_at,(SELECT (EXTRACT(EPOCH FROM (now()-updated_at))<30) FROM sys_metrics WHERE id=1) AS fresh,(SELECT count(*) FROM care_profiles WHERE last_ping > now()-interval '45 seconds') AS active_calls,(SELECT count(*) FROM care_sessions WHERE started_at > now()-interval '1 hour') AS calls_1h,(SELECT COALESCE(sum(total_tokens),0) FROM care_sessions WHERE started_at > now()-interval '1 hour') AS tokens_1h\";\nreturn [{json:{ ok, query: ok?sql:\"SELECT 1 WHERE false\" }}];"
+      }
+    },
+    {
+      "id": "12b7aa89-6981-4b1b-a751-99ca5696312b",
+      "name": "시스템조회",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        780
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}"
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "pgvector RAG (n8n_rag)"
+        }
+      }
+    },
+    {
+      "id": "2c8e7a06-fb87-4868-8c81-adb5988a37f4",
+      "name": "시스템응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        780
+      ],
+      "parameters": {
+        "jsCode": "let ok=false; try{ ok=$('시스템빌드').first().json.ok===true; }catch(e){}\nif(!ok) return [{json:{error:'unauthorized'}}];\nconst r=$input.first().json||{};\nconst nn=v=>v==null?null:(isNaN(+v)?null:+v);\nreturn [{json:{ ok:true, cpu:nn(r.cpu), mem:nn(r.mem), disk:nn(r.disk), gpu:nn(r.gpu), gpu_name:r.gpu_name||'', uptime:nn(r.uptime), host:r.host||'', updated_at:r.updated_at||null, fresh:(r.fresh===true||r.fresh==='t'), active_calls:nn(r.active_calls)||0, calls_1h:nn(r.calls_1h)||0, tokens_1h:nn(r.tokens_1h)||0 }}];"
+      }
     }
   ],
   "connections": {
@@ -227,6 +346,61 @@
         [
           {
             "node": "분석응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "지표수신": {
+      "main": [
+        [
+          {
+            "node": "지표저장빌드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "지표저장빌드": {
+      "main": [
+        [
+          {
+            "node": "지표저장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "시스템요청": {
+      "main": [
+        [
+          {
+            "node": "시스템빌드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "시스템빌드": {
+      "main": [
+        [
+          {
+            "node": "시스템조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "시스템조회": {
+      "main": [
+        [
+          {
+            "node": "시스템응답",
             "type": "main",
             "index": 0
           }

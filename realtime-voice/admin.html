@@ -77,6 +77,11 @@
   .bar{ height:100%; background:linear-gradient(90deg,#38bdf8,#22c55e); border-radius:6px 0 0 6px; min-width:2px; transition:width .3s; }
   .barval{ width:96px; flex:0 0 auto; font-size:.85rem; font-weight:700; }
   .tbl tr.click{ cursor:pointer; } .tbl tr.click:hover td{ background:var(--card2); }
+  .sysgrid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .gauge .gtop{ display:flex; justify-content:space-between; font-size:.85rem; margin-bottom:5px; }
+  .gauge .gtop span:last-child{ font-weight:800; }
+  .sysllm{ display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); font-size:.9rem; color:var(--mut); }
+  .sysllm b{ color:var(--txt); font-size:1.05rem; }
   @media (max-width:760px){ .summary{ grid-template-columns:repeat(2,1fr); } .barlabel{ width:78px; } .barval{ width:70px; } }
 </style>
 </head>
@@ -101,6 +106,22 @@
   </div>
 
   <div id="dash" hidden>
+    <div class="card" id="sysCard">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <b>🖥️ 서버 / LLM 부하</b><span class="m2" id="sysHost"></span><span style="flex:1"></span><span class="m2" id="sysUpd"></span>
+      </div>
+      <div class="sysgrid">
+        <div class="gauge"><div class="gtop"><span>CPU</span><span id="g-cpu">—</span></div><div class="bartrack"><div class="bar" id="b-cpu" style="width:0%"></div></div></div>
+        <div class="gauge"><div class="gtop"><span>메모리</span><span id="g-mem">—</span></div><div class="bartrack"><div class="bar" id="b-mem" style="width:0%"></div></div></div>
+        <div class="gauge"><div class="gtop"><span>디스크</span><span id="g-disk">—</span></div><div class="bartrack"><div class="bar" id="b-disk" style="width:0%"></div></div></div>
+        <div class="gauge"><div class="gtop"><span id="gpuLabel">GPU</span><span id="g-gpu">—</span></div><div class="bartrack"><div class="bar" id="b-gpu" style="width:0%"></div></div></div>
+      </div>
+      <div class="sysllm">
+        <span>📞 동시 통화 <b id="s-active">0</b></span>
+        <span>🕐 최근 1시간 통화 <b id="s-c1h">0</b>회</span>
+        <span>🎟 최근 1시간 토큰 <b id="s-t1h">0</b></span>
+      </div>
+    </div>
     <div class="summary">
       <div class="stat"><div class="k">접속 단말기</div><div class="v" id="s-dev">0</div></div>
       <div class="stat"><div class="k">현재 통화중</div><div class="v" id="s-on" style="color:var(--on)">0</div></div>
@@ -310,7 +331,23 @@
   $('blockModal').onclick=(e)=>{ if(e.target===$('blockModal')) $('blockModal').hidden=true; };
   $('blockConfirm').onclick=async ()=>{ const reason=($('reasonText').value||'').trim(); if(!reason){ alert('차단 사유를 입력하세요.'); return; } const ok=await sendDecision(blockTargetId,'blocked',reason); if(ok) $('blockModal').hidden=true; };
 
+  // 서버 시스템 / LLM 부하
+  function renderSys(s){
+    const set=(g,b,v)=>{ const val=(v==null)?null:+v; $(g).textContent=(val==null)?'—':(val+'%'); const bar=$(b); bar.style.width=(val==null?0:Math.min(100,val))+'%'; bar.style.background=(val==null)?'#475569':(val<60?'#22c55e':val<85?'#f59e0b':'#ef4444'); };
+    set('g-cpu','b-cpu',s.cpu); set('g-mem','b-mem',s.mem); set('g-disk','b-disk',s.disk);
+    if(s.gpu!=null){ $('gpuLabel').textContent='GPU'+(s.gpu_name?(' · '+String(s.gpu_name).replace(/NVIDIA GeForce |Laptop GPU/g,'').trim()):''); set('g-gpu','b-gpu',s.gpu); }
+    else { $('gpuLabel').textContent='GPU (로컬 LLM 미적용)'; $('g-gpu').textContent='—'; $('b-gpu').style.width='0%'; $('b-gpu').style.background='#475569'; }
+    $('s-active').textContent=num(s.active_calls); $('s-c1h').textContent=num(s.calls_1h); $('s-t1h').textContent=num(s.tokens_1h);
+    $('sysHost').textContent=s.host?('· '+s.host):'';
+    if(s.cpu==null && s.mem==null && s.disk==null){ $('sysUpd').textContent='⚠️ 수집기 미실행 (tools/metrics-agent.cjs)'; $('sysUpd').style.color='#f59e0b'; }
+    else { $('sysUpd').textContent=(s.fresh?'🟢 ':'⚪ ')+'수집 '+(s.updated_at||'-'); $('sysUpd').style.color=''; }
+  }
+  async function loadSys(){
+    const pass=getPass(); if(!pass) return;
+    try{ const r=await fetch(N8N_BASE+'/admin-sys?pass='+encodeURIComponent(pass),{ headers:{ 'ngrok-skip-browser-warning':'true' } }); const j=await r.json().catch(()=>({})); if(j&&!j.error) renderSys(j); }catch(e){}
+  }
   async function load(){
+    loadSys();
     const res = await fetchData();
     if(res && res.error){
       if(res.error==='nopass'){ showGate(); return; }
