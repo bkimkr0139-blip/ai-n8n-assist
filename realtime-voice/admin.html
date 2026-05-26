@@ -192,7 +192,9 @@
   <div class="closebar"><button class="ghost" id="closeDetail">닫기</button></div>
   <h3 id="dTitle">단말기 상세</h3>
   <div class="sub" id="dSub"></div>
-  <div style="font-weight:700;margin:10px 0 6px">📓 누적 기억(메모)</div>
+  <div style="font-weight:700;margin:10px 0 6px">💲 토큰·비용 (LLM 분리)</div>
+  <div class="memo" id="dCost" style="line-height:1.7">계산 중…</div>
+  <div style="font-weight:700;margin:16px 0 6px">📓 누적 기억(메모)</div>
   <div class="memo" id="dMemo">(없음)</div>
   <div style="font-weight:700;margin:16px 0 6px">🗒️ 통화 기록</div>
   <div id="dSessions"></div>
@@ -300,11 +302,29 @@
     $('dTitle').textContent = (d.name||'(이름 미설정)')+' — '+ (d.region||'');
     $('dSub').textContent = '단말기 '+shortId(deviceId)+' · 통화 '+num(d.sessions)+'회 · 누적 '+dur(d.total_duration)+' · 토큰 '+num(d.total_tokens)+' · 최근 '+rel(d.last_ping||d.last_at);
     $('dMemo').textContent = d.memo || '(아직 기억이 없습니다)';
+    // 클라우드 vs 로컬 토큰 분리: realtime(input/output_tokens)은 항상 클라우드. 요약(summary_*)은 provider별.
+    let cIn=0,cOut=0,lIn=0,lOut=0;
+    ses.forEach(s=>{
+      cIn += +s.input_tokens||0; cOut += +s.output_tokens||0;
+      const sp=(s.summary_provider||'').toLowerCase();
+      if(sp==='ollama'){ lIn += +s.summary_in_tok||0; lOut += +s.summary_out_tok||0; }
+      else { cIn += +s.summary_in_tok||0; cOut += +s.summary_out_tok||0; }
+    });
+    const cloudCost=calcCost(cIn,cOut);
+    $('dCost').innerHTML =
+      '<div>☁️ <b>클라우드 LLM</b>(OpenAI Realtime + 요약): <b>'+num(cIn+cOut)+'</b> 토큰 '+
+        '<span style="color:#94a3b8">(입력 '+num(cIn)+' / 출력 '+num(cOut)+')</span> · 예상 비용 <b style="color:#fbbf24">'+fmtCost(cloudCost)+'</b></div>'+
+      '<div style="margin-top:6px">💻 <b>로컬 LLM</b>(Ollama): <b>'+num(lIn+lOut)+'</b> 토큰 '+
+        '<span style="color:#94a3b8">(입력 '+num(lIn)+' / 출력 '+num(lOut)+')</span> · 비용 <b style="color:#22c55e">없음</b> <span style="color:#94a3b8">(서버 자체 실행)</span></div>'+
+      '<div style="color:#94a3b8;font-size:.82rem;margin-top:6px">통화 음성은 항상 ☁️ 클라우드. 통화 후 기억 요약만 선택된 LLM 사용(하이브리드).</div>';
     const sb=$('dSessions'); sb.innerHTML='';
     if(!ses.length){ sb.innerHTML='<div class="empty">통화 기록이 없습니다.</div>'; }
     ses.forEach(s=>{
       const el=document.createElement('div'); el.className='ses';
-      el.innerHTML='<div class="h"><span>🕒 '+tm(s.started_at)+'</span><span>⏱ '+dur(s.duration_sec)+'</span><span>💬 '+num(s.turns)+'</span><span>🎟 '+num(s.total_tokens)+' 토큰</span></div>'+
+      const sp=(s.summary_provider||'').toLowerCase();
+      const sumTok=(+s.summary_in_tok||0)+(+s.summary_out_tok||0);
+      const sumNote = sumTok ? ' · '+(sp==='ollama'?'💻 ':'☁️ ')+'요약 '+num(sumTok) : '';
+      el.innerHTML='<div class="h"><span>🕒 '+tm(s.started_at)+'</span><span>⏱ '+dur(s.duration_sec)+'</span><span>💬 '+num(s.turns)+'</span><span>☁️ '+num(s.total_tokens)+' 토큰'+sumNote+'</span></div>'+
         (s.transcript? '<pre>'+esc(s.transcript)+'</pre>' : '<pre style="color:#64748b">(대화 내용 없음)</pre>');
       sb.appendChild(el);
     });

@@ -127,7 +127,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "const d=$input.first().json||{};\nconst memo=((d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'').trim();\nlet dev=''; try{ dev=String($('요약프롬프트').first().json.device_id||''); }catch(e){}\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst query = dev ? (\"INSERT INTO care_profiles (device_id, memo, visits, updated_at) VALUES ('\"+esc(dev)+\"', '\"+esc(memo)+\"', 1, now()) ON CONFLICT (device_id) DO UPDATE SET memo=EXCLUDED.memo, visits=care_profiles.visits+1, updated_at=now()\") : \"SELECT 1 WHERE false\";\nreturn [{ json:{ memo, query, device_id:dev } }];"
+        "jsCode": "const d=$input.first().json||{};\nconst memo=((d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'').trim();\nconst u=d.usage||{};\nconst inTok=+u.prompt_tokens||0; const outTok=+u.completion_tokens||0;\nlet dev=''; try{ dev=String($('요약프롬프트').first().json.device_id||''); }catch(e){}\nlet provider='openai'; try{ provider=String($('LLM라우팅').first().json.provider||'openai'); }catch(e){}\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst query = dev ? (\"INSERT INTO care_profiles (device_id, memo, visits, updated_at) VALUES ('\"+esc(dev)+\"', '\"+esc(memo)+\"', 1, now()) ON CONFLICT (device_id) DO UPDATE SET memo=EXCLUDED.memo, visits=care_profiles.visits+1, updated_at=now()\") : \"SELECT 1 WHERE false\";\nreturn [{ json:{ memo, query, device_id:dev, in_tok:inTok, out_tok:outTok, provider } }];"
       }
     },
     {
@@ -160,7 +160,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "let memo=''; try{ memo=String($('요약추출').first().json.memo||''); }catch(e){}\nreturn [{ json:{ memo } }];"
+        "jsCode": "let memo='',in_tok=0,out_tok=0,provider='openai'; try{ const j=$('요약추출').first().json; memo=String(j.memo||''); in_tok=+j.in_tok||0; out_tok=+j.out_tok||0; provider=j.provider||'openai'; }catch(e){}\nreturn [{ json:{ memo, in_tok, out_tok, provider } }];"
       }
     },
     {
@@ -324,7 +324,7 @@
         660
       ],
       "parameters": {
-        "jsCode": "const b=($input.first().json.body)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst n=v=>{ const x=parseInt(v,10); return isNaN(x)?0:x; };\nconst id=esc(b.device_id||'');\nif(!id) return [{json:{query:\"SELECT 1 WHERE false\"}}];\nconst st=b.started_at?(\"'\"+esc(b.started_at)+\"'\"):'now()';\nconst en=b.ended_at?(\"'\"+esc(b.ended_at)+\"'\"):'now()';\nconst tr=esc(String(b.transcript||'').slice(0,8000));\nconst query=\"INSERT INTO care_sessions (device_id,started_at,ended_at,duration_sec,turns,input_tokens,output_tokens,total_tokens,transcript) VALUES ('\"+id+\"',\"+st+\",\"+en+\",\"+n(b.duration_sec)+\",\"+n(b.turns)+\",\"+n(b.input_tokens)+\",\"+n(b.output_tokens)+\",\"+n(b.total_tokens)+\",'\"+tr+\"')\";\nreturn [{json:{query}}];"
+        "jsCode": "const b=($input.first().json.body)||{};\nconst esc=s=>String(s==null?'':s).replace(/'/g,\"''\");\nconst n=v=>{ const x=parseInt(v,10); return isNaN(x)?0:x; };\nconst id=esc(b.device_id||'');\nif(!id) return [{json:{query:\"SELECT 1 WHERE false\"}}];\nconst st=b.started_at?(\"'\"+esc(b.started_at)+\"'\"):'now()';\nconst en=b.ended_at?(\"'\"+esc(b.ended_at)+\"'\"):'now()';\nconst tr=esc(String(b.transcript||'').slice(0,8000));\nconst query=\"INSERT INTO care_sessions (device_id,started_at,ended_at,duration_sec,turns,input_tokens,output_tokens,total_tokens,transcript,summary_in_tok,summary_out_tok,summary_provider) VALUES ('\"+id+\"',\"+st+\",\"+en+\",\"+n(b.duration_sec)+\",\"+n(b.turns)+\",\"+n(b.input_tokens)+\",\"+n(b.output_tokens)+\",\"+n(b.total_tokens)+\",'\"+tr+\"',\"+n(b.summary_in_tok)+\",\"+n(b.summary_out_tok)+\",'\"+esc(b.summary_provider||'')+\"')\";\nreturn [{json:{query}}];"
       }
     },
     {
