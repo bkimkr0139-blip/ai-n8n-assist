@@ -16,23 +16,27 @@ n8n + OpenAI로 만든 **텔레그램 개인비서 → 어르신 돌봄 AI 시�
 | `send_email_tool.json` | SMTP 이메일 발송 서브(Execute Workflow + Webhook) |
 | `med_scheduler.json` | 복약알림. /med-config(웹훅)→Postgres `med_schedules` 저장 + 5분 스케줄로 읽어 텔레그램 알림 |
 | `news_api.json` | /news(웹훅, CORS)→Google News RSS(한국) 서버fetch→헤드라인 top5 JSON |
-| `care_api.json` | care.html 클라이언트 API: /realtime-token(OpenAI 단기토큰), /care-summary(기억요약+device_id memo저장), /care-profile(GET)·/care-profile-save(POST), /care-session(통화로그), /care-ping(온라인핑) |
-| `admin_api.json` | 관리자 대시보드 API: /admin-data?pass=(패스코드 검증→단말기 집계+통화로그 JSON) |
+| `admin_api.json` | 관리자 대시보드 API: `/admin-data`(단말기+통화로그), `/admin-analytics`(기간/지역/단말기 다차원, json_agg 단일쿼리), `/sys-push`+`/admin-sys`(서버 CPU/메모리/디스크/GPU + LLM활동). 모두 패스코드(`인증`/`분석빌드`/`시스템빌드` 코드 노드). **비용 요율은 `admin.html`의 `COST` 상수 1곳에서 수정** |
+| `care_api.json` | care.html 클라이언트 API: `/realtime-token`(승인 단말기에만 OpenAI 단기토큰), `/care-summary`(기억 요약·device_id 저장), `/care-profile`(GET)·`/care-profile-save`(POST, 신규는 Telegram 알림), `/care-session`(통화로그), `/care-ping`(온라인), `/care-block`(승인/차단+사유, 패스코드), `/care-reset`(기억 초기화), `/care-delete`(단말기 일괄삭제, 패스코드) |
 
 **웹앱** (`realtime-voice/`, GitHub Pages: `https://bkimkr0139-blip.github.io/ai-n8n-assist/realtime-voice/`):
 | 파일 | 역할 |
 |---|---|
 | `index.html` | 일반 실시간 음성대화(OpenAI Realtime, `gpt-realtime`). ※아직 클라이언트 키 입력 방식 |
-| `care.html` | **어르신 돌봄 통화**. 키 없이 서버 단기토큰으로 접속, 여성음성·존댓말 페르소나, 날씨/뉴스 function tool, 세션간 기억, **단말기 기준 개인화**, 통화 로깅 |
-| `care-admin.html` | 돌봄 AI 말투·추임새·안내 음성 설정(→localStorage `care_config`, care.html이 주입). ※아직 키 입력 방식 |
+| `care.html` | **어르신 돌봄 통화**. 키 없이 서버 단기토큰으로 접속, 여성음성·존댓말 페르소나, 날씨/뉴스/시간 function tool, 세션간 기억, **단말기 기준 개인화**, 통화 로깅, **목소리 학습+화자 필터**, **신규 단말기 승인요청 화면**, **무응답 자동 호출/마무리**(한·영). 설정 UI 모바일 그리드 |
+| `care-admin.html` | 돌봄 AI 말투·추임새·안내 음성 설정(→`care_config`) + **대상자 음성/전체 초기화** |
 | `med.html` | 복약 일정 관리 UI(폼+자연어). localStorage가 원본, n8n /med-config로 동기화→알림 |
-| `admin.html` | **통합 관리자 모니터링 대시보드**(모바일·PC 반응형). 패스코드 로그인→단말기별 접속상태/횟수/통화시간/토큰 + 통화기록 상세 |
+| `admin.html` | **통합 관리자 대시보드**(모바일·PC 반응형, 패스코드). [📋 모니터링]/[📊 사용 분석] 탭. 모니터링: **🖥️ 서버/LLM 부하**(CPU·메모리·디스크·GPU 게이지 + 동시통화·1h 통화/토큰) + 단말기 카드(승인/차단·사유) + 통화로그 + **체크박스 선택/전체 삭제** + **예상 비용**. 분석: 기간(일/주/월/분기/년)·지표(통화수/시간/토큰/**비용**)·단말기·지역 필터로 다차원 분석(단말기 드릴다운) |
 
 **Postgres 테이블** (`db/init/01-vector.sql`, DB `n8n_rag`):
 - `telegram_docs` — RAG 벡터(PGVector 자동생성)
 - `med_schedules` — 복약 일정(chat_id PK)
-- `care_profiles` — 단말기별 어르신 프로필/기억(device_id PK: name/region/voice/env/speed/memo/visits/last_ping)
-- `care_sessions` — 통화 접속 로그(device_id/started·ended/duration_sec/turns/토큰/transcript)
+- `care_profiles` — 단말기별 어르신 프로필/기억(device_id PK: name/region/voice/env/speed/memo/visits/last_ping/**status[pending/approved/blocked]**/**block_reason**)
+- `care_sessions` — 통화 로그(device_id/started·ended/duration_sec/turns/**input·output·total tokens**/transcript)
+- `sys_metrics` — 로컬 서버 지표(단일행 id=1; cpu/mem/disk/gpu/gpu_name/uptime/host, `tools/metrics-agent.cjs`가 갱신)
+
+**선택 로컬 도구** (`tools/`):
+- `metrics-agent.cjs` — 무의존 Node 수집기(CPU/메모리/디스크/GPU `nvidia-smi`)가 10초마다 n8n `/sys-push`로 전송. 실행: `node tools/metrics-agent.cjs` (부팅 자동실행은 작업스케줄러/pm2)
 
 ## 실행/복구 방법
 
