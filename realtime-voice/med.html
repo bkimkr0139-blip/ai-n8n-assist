@@ -38,14 +38,28 @@
     <input id="key" type="password" placeholder="OpenAI API Key (sk-...) — 자연어 정리에 필요, 처음 한 번만" autocomplete="off" style="width:100%" />
   </div>
 
+  <div class="card" style="border:2px solid #2e6fae; background:#f5faff">
+    <h2>📲 텔레그램 자동 연결</h2>
+    <div id="tgState" class="sub" style="margin-bottom:10px;font-size:1rem">불러오는 중…</div>
+    <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+      <a id="tgLinkBtn" href="#" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;padding:11px 18px;border-radius:12px;background:#229ED9;color:#fff;font-weight:800;letter-spacing:-.01em">💬 텔레그램 봇에서 [START] 눌러 연결</a>
+      <button id="tgRefresh" class="alt" type="button">🔄 연결 확인</button>
+    </div>
+    <div class="sub" style="margin-top:10px;line-height:1.55">
+      ① 위 버튼을 누르면 텔레그램이 열리고 봇 화면이 나옵니다 → ② <b>[START]</b>(또는 [시작]) 한 번만 누르면 끝!<br>
+      앞으로 등록한 복약 시간에 이 텔레그램으로 안내가 자동 발송됩니다.<br>
+      <b>텔레그램이 없으시면</b> <a href="https://telegram.org/" target="_blank" rel="noopener" style="color:#2e6fae;font-weight:700">텔레그램 설치</a> 후 가입(전화번호 인증)하고 다시 위 버튼을 누르세요.
+    </div>
+  </div>
+
   <div class="card">
-    <h2>🔔 n8n 알림 연동</h2>
+    <h2>🔔 n8n 알림 연동 (수동·고급)</h2>
     <div class="row">
-      <input id="chatid" placeholder="어르신 텔레그램 ID" style="width:170px" />
+      <input id="chatid" placeholder="텔레그램 ID (자동 채움)" style="width:170px" />
       <input id="n8nurl" class="med" placeholder="n8n 웹훅 URL (.../webhook/med-config)" />
       <button id="syncBtn" class="alt">알림 동기화</button>
     </div>
-    <div class="sub" id="syncstate" style="margin-top:6px">일정을 저장하면 자동으로 n8n에 동기화되어, 등록한 시간에 알림이 발송됩니다.</div>
+    <div class="sub" id="syncstate" style="margin-top:6px">일정을 저장하면 자동으로 n8n에 동기화되어, 등록한 시간에 알림이 발송됩니다. (위 텔레그램 연결을 마치면 ID는 자동 채워집니다.)</div>
   </div>
 
   <div class="card">
@@ -93,6 +107,34 @@
       catch(e){ $('syncstate').textContent='⚠️ n8n 연결 실패(주소/CORS 확인): '+(e.message||e); }
     }
     $('syncBtn').onclick = ()=> syncN8n(false);
+
+    // 📲 텔레그램 자동 연결: 단말기 ID 내장 딥링크 → 봇이 [START] 받자마자 chat_id를 그 단말기에 자동 등록
+    const DEVICE_ID = (function(){ try{ return localStorage.getItem('care_device_id')||''; }catch(e){ return ''; } })();
+    const BOT_USERNAME = 'bckim_assistant_bot';
+    const N8N_BASE = N8N_URL_DEFAULT.replace(/\/med-config$/,'');
+    function tgDeeplink(){ return DEVICE_ID ? ('https://t.me/'+BOT_USERNAME+'?start=link_'+encodeURIComponent(DEVICE_ID)) : '#'; }
+    $('tgLinkBtn').href = tgDeeplink();
+    let tgLinked=false, tgPoll=null;
+    async function checkTgLink(){
+      if(!DEVICE_ID){ $('tgState').innerHTML='⚠️ <b>단말기 ID가 없습니다.</b> 먼저 어르신 통화 화면(care.html)을 열고 관리자 승인을 받으신 뒤 이 페이지를 새로고침해 주세요.'; return; }
+      try{
+        const r=await fetch(N8N_BASE+'/care-tg-status?device_id='+encodeURIComponent(DEVICE_ID),{ headers:{ 'ngrok-skip-browser-warning':'true' } });
+        if(!r.ok) return;
+        const j=await r.json();
+        if(j&&j.linked){
+          tgLinked=true;
+          $('tgState').innerHTML='✅ <b>연결 완료</b> — '+(j.name||'어르신')+' (텔레그램 ID: <code>'+j.chat_id+'</code>) · 복약 시간에 이 텔레그램으로 안내 발송됩니다.';
+          $('chatid').value=j.chat_id;
+          try{ localStorage.setItem('med_chatid', j.chat_id); }catch(e){}
+          if(tgPoll){ clearInterval(tgPoll); tgPoll=null; }
+        } else {
+          $('tgState').innerHTML='⏳ 미연결 — 위 파란 버튼을 눌러 텔레그램에서 [START]를 눌러주세요. (연결되면 자동으로 ✅ 표시)';
+        }
+      }catch(e){}
+    }
+    $('tgRefresh').onclick = checkTgLink;
+    checkTgLink();
+    tgPoll = setInterval(checkTgLink, 6000);
 
     function load(){ try { return JSON.parse(localStorage.getItem(MED_KEY)||'[]'); } catch { return []; } }
     function save(list){ list.sort((a,b)=> (a.time||'').localeCompare(b.time||'')); localStorage.setItem(MED_KEY, JSON.stringify(list)); render(); syncN8n(true); }
