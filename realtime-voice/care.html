@@ -315,7 +315,7 @@
     let sumIn=0, sumOut=0, sumProvider='', sumModel='';   // 통화 후 요약 LLM 사용량+모델명
     // 도구 호출: 결과 제출 후 즉시 response.create (OpenAI 공식 패턴). deferred는 오히려 race 유발해 1차 응답 누락.
     const SILENCE_MS=8000;    // AI가 말한 뒤 어르신 응답 대기 시간(짧을수록 무응답 통화 누적 비용 절감)
-    const MAX_NORESP=5;       // 이만큼 무응답이면 통화 마무리(=호출 4회 후, 약 40초 침묵 시)
+    const MAX_NORESP=4;       // 이만큼 무응답이면 통화 마무리(=호출 3회 후, 약 32초 침묵 시)
     const MAX_CALL_MS = 5*60*1000;  // 통화 최대 시간(5분). 도달하면 AI가 자연스러운 작별 인사 후 자동 종료
     let maxCallTimer = null;
     const setStatus = (s)=> els.status.textContent = s;
