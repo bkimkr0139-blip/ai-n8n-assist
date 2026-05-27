@@ -216,6 +216,7 @@
     const REGION_KEY = 'care_region';
 
     const PERSONA =
+      '[언어] 어르신과 모든 대화는 한국어 정중한 존댓말로만 말하세요. 일본어·영어 등 다른 언어로 답하지 마세요. ' +
       '당신은 어르신을 돌보는 30~40대의 밝고 친절한 여성 생활지원사(돌봄 종사자)입니다. ' +
       '목소리는 환하고 다정하며, 너무 느리지 않게 경쾌하고 또렷한 속도로 말합니다. 항상 정중한 존댓말을 씁니다. ' +
       '어르신의 안부(식사, 수면, 건강, 통증, 약 복용, 기분, 외로움)를 한 번에 하나씩 자연스럽게 여쭙고, 밝게 공감하며 경청합니다. ' +
@@ -422,7 +423,7 @@
     function sessionConfig(){
       return { type:'session.update', session:{ type:'realtime', instructions: buildInstructions(),
         tools:[ weatherTool(), newsTool(), timeTool() ], tool_choice:'auto',
-        audio:{ input:{ transcription:{ model:'whisper-1' }, noise_reduction:{ type:(ENV[els.env.value]||ENV.normal).nr }, turn_detection:{ type:'server_vad', threshold:(ENV[els.env.value]||ENV.normal).th, prefix_padding_ms:200, silence_duration_ms:500 } },
+        audio:{ input:{ transcription:{ model:'whisper-1', language:'ko' }, noise_reduction:{ type:(ENV[els.env.value]||ENV.normal).nr }, turn_detection:{ type:'server_vad', threshold:(ENV[els.env.value]||ENV.normal).th, prefix_padding_ms:200, silence_duration_ms:500 } },
                 output:{ voice: els.voice.value, speed: parseFloat(els.speed.value) } } } };
     }
 
