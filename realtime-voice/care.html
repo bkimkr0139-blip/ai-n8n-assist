@@ -151,6 +151,10 @@
         <input id="worker" placeholder="예: 김지원" />
       </div>
       <div class="field">
+        <label>📞 담당자 연락처</label>
+        <input id="worker_phone" type="tel" placeholder="예: 010-1234-5678" inputmode="tel" />
+      </div>
+      <div class="field">
         <label>📍 거주지역</label>
         <input id="region" placeholder="예: 서울" />
       </div>
@@ -213,6 +217,7 @@
     const DEVICE_ID = getDeviceId();
     const MEM_KEY = 'care_memory_v1';
     const CFG_KEY = 'care_config';
+    const CRISIS_KEY = 'care_crisis_scenarios';
     const REGION_KEY = 'care_region';
 
     const PERSONA =
@@ -227,25 +232,30 @@
       '밝고 따뜻하게 짧은 작별 인사만 드리고 마무리합니다. ' +
       '주변 TV·라디오·다른 사람 말소리나 잡음에는 반응하지 마세요. 어르신이 당신에게 또렷이 말을 걸 때만 답하고, 입력이 불분명하거나 대화 상대를 향한 말이 아닌 것 같으면 답하지 말고 조용히 기다리세요. 당신(AI) 자신의 말소리에는 절대 반응하지 마세요. ' +
       '날씨 등 도구로 정보를 찾을 때는 도구를 호출하기 직전에 반드시 "네, 잠시만요. 바로 찾아볼게요" 또는 "네, 잠깐만요" 같은 짧은 말을 먼저 한 뒤 도구를 호출하세요. 그래야 찾는 동안 어색한 침묵이 없습니다. 결과가 오면 자연스럽게 이어서 답하세요. ' +
-      '[응답 길이] 한 번의 응답은 가급적 1문장, 길어도 최대 2문장으로 짧고 또렷하게 마무리하세요. 한 번에 여러 가지를 한꺼번에 묻거나 길게 늘여 말하지 마세요.';
+      '[응답 길이] 한 번의 응답은 가급적 1문장, 길어도 최대 2문장으로 짧고 또렷하게 마무리하세요. 한 번에 여러 가지를 한꺼번에 묻거나 길게 늘여 말하지 마세요. ' +
+      '[용어] 어르신이 "생지사"라고 줄여 말씀하시면 "생활지원사"를 뜻합니다. 본인을 가리키는 말로 받아들여 자연스럽게 대답하세요. ("복지사", "복지님" 같은 친근한 호칭도 본인을 가리키는 말로 응대) ' +
+      '[연락 요청 처리] 어르신이 생활지원사·담당자에게 연락(전화·문자)해 달라고 부탁하시면, instructions에 [담당자 연락처]가 함께 주어졌는지 먼저 확인하세요. (1) 연락처가 주어져 있으면 자연스럽게 그 번호를 또박또박 알려드리세요(예: "담당 선생님 연락처는 010-1234-5678입니다. 그쪽으로 전화하시면 통화하실 수 있어요"). (2) 연락처가 없으면 거짓 약속(예: "네, 제가 전화 드릴게요")은 절대 하지 말고 "전화번호가 따로 적혀 있질 않아서요, 제가 담당 선생님께 말씀 꼭 전해 드릴게요. 또는 메시지로 남겨 두겠습니다."처럼 안심시키며 답하세요. 급해 보이면 가족·119를 권하세요. ' +
+      '[금지: 사실 창작] 이전 통화에 대한 메모가 따로 주어지지 않았거나 그 메모에 적혀 있지 않은 내용은, 마치 기억하는 것처럼 단정해 말하지 마세요. 예를 들어 메모에 "허리 통증" 같은 기록이 없는데도 "지난번 허리 아프셨는데" 같이 말하는 것은 금지입니다. 확실하지 않으면 그저 새로 여쭤보세요(예: "요즘 몸은 어떠세요?").';
 
     const WORKER_KEY = 'care_worker';
+    const WORKER_PHONE_KEY = 'care_worker_phone';
     const PURPOSE = (new URLSearchParams(location.search).get('purpose') || new URLSearchParams(location.search).get('p') || '').trim();
     const $ = (id) => document.getElementById(id);
-    const els = { worker:$('worker'), region:$('region'), voice:$('voice'), speed:$('speed'), env:$('env'), start:$('start'), stop:$('stop'), status:$('status'),
+    const els = { worker:$('worker'), worker_phone:$('worker_phone'), region:$('region'), voice:$('voice'), speed:$('speed'), env:$('env'), start:$('start'), stop:$('stop'), status:$('status'),
                   log:$('log'), audio:$('audio'), memstate:$('memstate'), memtext:$('memtext'), clearmem:$('clearmem'),
                   vfilter:$('vfilter'), relearn:$('relearn'), vstate:$('vstate'),
                   approval:$('approval'), approvalMsg:$('approvalMsg'), reqApprove:$('reqApprove') };
     const ENV = { quiet:{nr:'near_field',th:0.45}, normal:{nr:'far_field',th:0.55}, noisy:{nr:'far_field',th:0.72} };
     els.env.value = localStorage.getItem('care_env') || 'normal';
     els.worker.value = localStorage.getItem(WORKER_KEY) || '';
+    els.worker_phone.value = localStorage.getItem(WORKER_PHONE_KEY) || '';
     els.region.value = localStorage.getItem(REGION_KEY) || '서울';
     // 설정 변경 시 localStorage + 서버(device_id 기준) 양쪽에 저장 → 재접속 시 서버에서 복원
     async function saveProfile(){
-      try{ localStorage.setItem(WORKER_KEY,(els.worker.value||'').trim()); localStorage.setItem(REGION_KEY,(els.region.value||'서울').trim()); localStorage.setItem('care_env', els.env.value); }catch(e){}
+      try{ localStorage.setItem(WORKER_KEY,(els.worker.value||'').trim()); localStorage.setItem(WORKER_PHONE_KEY,(els.worker_phone.value||'').trim()); localStorage.setItem(REGION_KEY,(els.region.value||'서울').trim()); localStorage.setItem('care_env', els.env.value); }catch(e){}
       try{ await fetch(PROFILE_SAVE_URL,{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ device_id:DEVICE_ID, name:(els.worker.value||'').trim(), region:(els.region.value||'서울').trim(), voice:els.voice.value, env:els.env.value, speed:els.speed.value }) }); }catch(e){}
     }
-    els.worker.onchange = saveProfile; els.region.onchange = saveProfile; els.voice.onchange = saveProfile; els.speed.onchange = saveProfile; els.env.onchange = saveProfile;
+    els.worker.onchange = saveProfile; els.worker_phone.onchange = saveProfile; els.region.onchange = saveProfile; els.voice.onchange = saveProfile; els.speed.onchange = saveProfile; els.env.onchange = saveProfile;
     // ===== 신규 단말기 승인 안내 =====
     let approvalPoll=null;
     function showApproval(state, reason){
@@ -410,16 +420,32 @@
       let ins = PERSONA;
       const cfg = (localStorage.getItem(CFG_KEY) || '').trim();
       if (cfg) ins += '\n\n[관리자 맞춤 설정 — 아래 지침을 최우선으로 따르세요]\n' + cfg;
+      const crisis = (localStorage.getItem(CRISIS_KEY) || '').trim();
+      if (crisis) {
+        ins += '\n\n[위기 상황 응대 시나리오 — 최우선 적용]\n' + crisis +
+               '\n[적용 규칙] 어르신의 말씀에서 위기 신호(가슴 답답·숨참·어지러움·심한 통증·낙상·우울·자해 암시·이상한 정신 혼란 등)가 감지되면, 즉시 위 시나리오에 따라 다정하고 침착하게 응대하세요. 의료 진단·처방은 절대 하지 말고, 시나리오에 적힌 행동(예: 119 안내·가족 연락 권유·자세 안내)을 정확히 따르세요. 위기가 끝나면 담당자에게 메시지로 꼭 전달하겠다고 안내하세요.';
+      }
       ins += '\n\n[어르신 거주지역] '+region+'. 날씨를 여쭤보시면 get_weather 도구를 쓰세요. 지역을 따로 안 말씀하시면 거주지역('+region+')으로, 다른 지역을 말씀하시면 그 지역으로 조회하고, 결과를 다정하게 대화에 녹여 알려드리세요(예보 수치를 그대로 읽기보다 자연스럽게).';
       const worker = (els.worker.value||'').trim();
+      const workerPhone = (els.worker_phone.value||'').trim();
       ins += '\n\n[통화 시작 인사] 가장 먼저 공손히 인사하세요: "어르신, 안녕하세요. 저는 생활지원사 ' + (worker || '') + '입니다." (담당자 이름이 비어 있으면 "저는 생활지원사입니다"). 그런 다음 아래 용건을 말하세요.';
+      if (workerPhone) {
+        ins += '\n\n[담당자 연락처] 담당 생활지원사 ' + (worker||'(이름 미입력)') + ': ' + workerPhone +
+               '\n어르신이 "생지사/담당자/선생님께 전화해 달라/연락처 알려 달라"는 취지로 말씀하시면 위 번호를 또박또박 안내해 드리세요. 예: "담당 선생님 연락처는 ' + workerPhone + '입니다. 그쪽으로 전화하시면 통화하실 수 있어요." 다른 용도(예: 광고·낯선 사람에게)는 알려주지 마세요.';
+      }
       if (PURPOSE === 'med') {
         ins += '\n[오늘 용건] 복약 안내 전화입니다. 약 드실 시간이 되어 연락드렸다고 따뜻하게 말하고, 약을 드셨는지 여쭤본 뒤 아직이면 지금 천천히 드시도록 다정하게 안내·확인하세요. 물도 한 잔 곁들이시도록 권하세요. 그 뒤 짧게 안부도 여쭤보세요.';
         let meds=''; try{ const ms=JSON.parse(localStorage.getItem('med_schedule')||'[]'); if(ms.length) meds=ms.map(m=>'- '+(m.time||'')+' '+(m.when||'')+': '+(m.med||'')).join('\n'); }catch(e){}
         if(meds) ins += '\n[복약 일정]\n'+meds+'\n아래 [현재 시각]과 복약 일정을 비교해, 지금 시각에 해당하는 약을 콕 집어 안내하세요(예: 아침 식후 치매약). 헷갈리면 get_time으로 현재 시각을 확인하세요. 시간이 안 맞는 약까지 굳이 다 읽지는 마세요.';
       }
       else ins += '\n[오늘 용건] 안부 확인입니다. 식사·수면·기분·건강을 자연스럽게 여쭤보세요.';
-      if (pastMem) ins += '\n\n[이 어르신과의 이전 통화 메모]\n' + pastMem + '\n인사와 용건 뒤, 위 메모에서 한 가지를 콕 집어 안부를 이어가세요(메모를 그대로 읽지 말고 대화에 녹이세요).';
+      if (pastMem) {
+        ins += '\n\n[이 어르신과의 이전 통화 메모 — 사실로 신뢰할 수 있는 유일한 기록]\n' + pastMem +
+               '\n[메모 사용 규칙] 인사와 용건 뒤, 위 메모에서 실제로 적힌 사실 한 가지만 콕 집어 안부를 이어가세요(메모를 그대로 읽지 말고 대화에 녹이세요).' +
+               ' 메모에 적혀 있지 않은 내용은 "지난번에 ~하셨죠?" 같이 단정해 말하지 마세요. 메모에 없는 사항은 그냥 새로 여쭤보세요(예: "오늘 기분은 어떠세요?").';
+      } else {
+        ins += '\n\n[이전 통화 메모] 이 어르신과의 이전 통화 메모가 아직 없습니다. 따라서 "지난번에 ~하셨죠?", "전에 말씀하신 ~", "기억하시죠? ~" 같이 과거 통화를 단정·암시하는 표현은 절대 사용하지 마세요. 대신 처음 만나는 마음으로 새로 여쭤보세요.';
+      }
       // 매번 변동되는 부분은 instructions 맨 끝에
       ins += '\n\n[현재 시각] '+getTimeNow()+' — 이 시스템의 실제 현재 시각입니다. 어르신이 시간·날짜·요일을 물으면 get_time 도구로 확인해 답하고(추측 금지), 복약 등 시간 안내도 반드시 이 현재 시각을 기준으로 하세요.';
       return ins;

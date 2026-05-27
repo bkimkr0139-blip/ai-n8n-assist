@@ -65,6 +65,16 @@
   </div>
 
   <div class="card">
+    <label>🆘 위기 상황 응대 시나리오 — 통화 중 위기 신호 감지 시 자동 적용</label>
+    <textarea id="crisis" placeholder="예) 가슴이 답답하시다거나 숨이 차다고 하면 → 즉시 '제가 119에 알려드릴게요. 우선 편한 자세로 앉으시고 천천히 숨 쉬세요'라고 안심시키고, 가족분께 알리도록 권하세요.&#10;예) 어지럽거나 쓰러질 것 같다고 하면 → '바닥에 천천히 앉으셔서 벽에 기대세요. 119 부탁드릴게요. 가족분께도 바로 연락드릴게요.'&#10;예) 우울하고 살기 싫다는 말씀이 나오면 → 다정하게 들어드리고, 절대 혼자 두지 말고 '자살예방상담전화 1393에 같이 연결해드릴까요?'를 권하세요. 위기 종료 후에는 담당자에게 메시지 전달."></textarea>
+    <div class="row" style="margin-top:10px">
+      <button id="savecrisis" class="alt">시나리오 저장</button>
+      <button id="clearcrisis" class="alt">시나리오 초기화</button>
+    </div>
+    <div class="sub" style="margin-top:8px">한 줄에 한 시나리오로 자유롭게 적으세요. AI는 위기 신호를 감지하면 위 시나리오를 우선해 따르도록 안내됩니다. (의료 진단·처방은 어떤 경우에도 하지 않습니다.)</div>
+  </div>
+
+  <div class="card">
     <label>👤 대상자(어르신) 관리 — 이 단말기</label>
     <div class="sub" id="subjState" style="margin:6px 0 10px">확인 중…</div>
     <div class="row">
@@ -81,6 +91,7 @@
     const MODEL = 'gpt-realtime';
     const CALLS_URL = 'https://api.openai.com/v1/realtime/calls';
     const CFG_KEY = 'care_config';
+    const CRISIS_KEY = 'care_crisis_scenarios';
 
     const ADMIN_PERSONA =
       '당신은 돌봄 서비스 관리자를 돕는 "AI 설정 도우미"입니다. 관리자가 어르신 돌봄 통화 AI(생활지원사 역할)를 ' +
@@ -92,9 +103,11 @@
 
     const $ = (id) => document.getElementById(id);
     const els = { key:$('key'), worker:$('worker'), saveworker:$('saveworker'), voice:$('voice'), start:$('start'), stop:$('stop'), status:$('status'),
-                  log:$('log'), audio:$('audio'), cfg:$('cfg'), savecfg:$('savecfg'), clearcfg:$('clearcfg') };
+                  log:$('log'), audio:$('audio'), cfg:$('cfg'), savecfg:$('savecfg'), clearcfg:$('clearcfg'),
+                  crisis:$('crisis'), savecrisis:$('savecrisis'), clearcrisis:$('clearcrisis') };
     els.key.value = localStorage.getItem('oai_key') || '';
     els.cfg.value = localStorage.getItem(CFG_KEY) || '';
+    els.crisis.value = localStorage.getItem(CRISIS_KEY) || '';
     els.worker.value = localStorage.getItem('care_worker') || '';
     els.saveworker.onclick = ()=>{ localStorage.setItem('care_worker', (els.worker.value||'').trim()); setStatus('💾 담당 생활지원사 이름을 저장했습니다.'); };
 
@@ -104,6 +117,8 @@
 
     els.savecfg.onclick = ()=>{ localStorage.setItem(CFG_KEY, els.cfg.value.trim()); setStatus('💾 설정을 저장했습니다. 어르신 통화에 반영됩니다.'); };
     els.clearcfg.onclick = ()=>{ if(confirm('맞춤 설정을 초기화할까요?')){ localStorage.removeItem(CFG_KEY); els.cfg.value=''; setStatus('설정을 초기화했습니다.'); } };
+    els.savecrisis.onclick = ()=>{ localStorage.setItem(CRISIS_KEY, els.crisis.value.trim()); setStatus('🆘 위기 시나리오를 저장했습니다. 통화에 반영됩니다.'); };
+    els.clearcrisis.onclick = ()=>{ if(confirm('위기 시나리오를 초기화할까요?')){ localStorage.removeItem(CRISIS_KEY); els.crisis.value=''; setStatus('위기 시나리오를 초기화했습니다.'); } };
 
     // ===== 대상자(어르신) 음성/기억 관리 — 단말기 대상자 변경 유연성 =====
     const N8N_BASE_ADMIN = 'https://hardware-finalize-faceted.ngrok-free.dev/webhook';
