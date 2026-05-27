@@ -397,7 +397,7 @@
 
   const num = (n)=> (parseInt(n)||0).toLocaleString();
   // 요청당 비용 = 입력토큰 비용 + 출력토큰 비용. 요율은 여기서 수정(OpenAI는 1M 토큰당 USD).
-  const COST = { inPer1M: 32, outPer1M: 64, krwPerUsd: 1350 };  // gpt-realtime(오디오) 추정 요율 — 모델/요율·로컬LLM에 맞게 수정
+  const COST = { inPer1M: 10, outPer1M: 20, krwPerUsd: 1350 };  // gpt-realtime-mini(오디오) 추정 요율 — 모델 교체 시 여기 수정
   function calcCost(inTok, outTok){ return ((+inTok||0)*COST.inPer1M + (+outTok||0)*COST.outPer1M)/1e6; }  // USD
   function fmtCost(usd){ const w=Math.round(usd*COST.krwPerUsd); return '$'+(usd<1?usd.toFixed(3):usd.toFixed(2))+' (₩'+w.toLocaleString()+')'; }
   function dur(sec){ sec=parseInt(sec)||0; const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60; if(h) return h+'시간 '+m+'분'; if(m) return m+'분 '+s+'초'; return s+'초'; }
