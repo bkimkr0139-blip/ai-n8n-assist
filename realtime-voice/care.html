@@ -225,7 +225,8 @@
       '어르신이 통화를 마치고 싶어 하시면(예: 그만/끊을게/이만/들어가볼게/수고했어요) 길게 붙잡지 말고 ' +
       '밝고 따뜻하게 짧은 작별 인사만 드리고 마무리합니다. ' +
       '주변 TV·라디오·다른 사람 말소리나 잡음에는 반응하지 마세요. 어르신이 당신에게 또렷이 말을 걸 때만 답하고, 입력이 불분명하거나 대화 상대를 향한 말이 아닌 것 같으면 답하지 말고 조용히 기다리세요. 당신(AI) 자신의 말소리에는 절대 반응하지 마세요. ' +
-      '날씨 등 도구로 정보를 찾을 때는 도구를 호출하기 직전에 반드시 "네, 잠시만요. 바로 찾아볼게요" 또는 "네, 잠깐만요" 같은 짧은 말을 먼저 한 뒤 도구를 호출하세요. 그래야 찾는 동안 어색한 침묵이 없습니다. 결과가 오면 자연스럽게 이어서 답하세요.';
+      '날씨 등 도구로 정보를 찾을 때는 도구를 호출하기 직전에 반드시 "네, 잠시만요. 바로 찾아볼게요" 또는 "네, 잠깐만요" 같은 짧은 말을 먼저 한 뒤 도구를 호출하세요. 그래야 찾는 동안 어색한 침묵이 없습니다. 결과가 오면 자연스럽게 이어서 답하세요. ' +
+      '[응답 길이] 한 번의 응답은 가급적 1문장, 길어도 최대 2문장으로 짧고 또렷하게 마무리하세요. 한 번에 여러 가지를 한꺼번에 묻거나 길게 늘여 말하지 마세요.';
 
     const WORKER_KEY = 'care_worker';
     const PURPOSE = (new URLSearchParams(location.search).get('purpose') || new URLSearchParams(location.search).get('p') || '').trim();
@@ -312,8 +313,10 @@
     let silenceTimer=null, noResp=0, stopTimer=null, stopped=false;
     let sumIn=0, sumOut=0, sumProvider='', sumModel='';   // 통화 후 요약 LLM 사용량+모델명
     // 도구 호출: 결과 제출 후 즉시 response.create (OpenAI 공식 패턴). deferred는 오히려 race 유발해 1차 응답 누락.
-    const SILENCE_MS=22000;   // AI가 말한 뒤 어르신 응답을 기다리는 시간(어르신 생각·뉴스 청취 시간 고려)
-    const MAX_NORESP=5;       // 이만큼 무응답이면 통화 마무리(=호출 4회 후, 약 110초 침묵 시)
+    const SILENCE_MS=15000;   // AI가 말한 뒤 어르신 응답 대기 시간(짧을수록 무응답 통화 누적 비용 절감)
+    const MAX_NORESP=5;       // 이만큼 무응답이면 통화 마무리(=호출 4회 후, 약 75초 침묵 시)
+    const MAX_CALL_MS = 5*60*1000;  // 통화 최대 시간(5분). 도달하면 AI가 자연스러운 작별 인사 후 자동 종료
+    let maxCallTimer = null;
     const setStatus = (s)=> els.status.textContent = s;
     function add(cls, text){ const d=document.createElement('div'); d.className='msg '+cls; d.textContent=text; els.log.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'end'}); }
     function loadMem(){ try { return localStorage.getItem(MEM_KEY)||''; } catch { return ''; } }
@@ -566,6 +569,7 @@
         await pc.setRemoteDescription({ type:'answer', sdp: await resp.text() });
         els.stop.disabled = false;
         ping(); if(pingTimer) clearInterval(pingTimer); pingTimer=setInterval(ping, 15000);
+        armMaxCallTimer();  // 5분 통화 상한 타이머 시작 (Phase 1: 비용 폭주 방지)
       } catch(err){ setStatus('❌ 오류: '+(err&&err.message?err.message:err)); cleanup(); }
     }
 
@@ -581,8 +585,19 @@
       saveMem((pastMem? pastMem+'\n':'')+ '[최근통화]\n'+ turns.slice(-12).join('\n'));
     }
 
-    function cleanup(){ clearSilence(); if(pingTimer){ clearInterval(pingTimer); pingTimer=null; } stopVoiceFilter(); try{if(dc)dc.close();}catch{} try{if(pc)pc.close();}catch{} try{if(micStream)micStream.getTracks().forEach(t=>t.stop());}catch{} pc=dc=micStream=null; els.start.disabled=false; els.stop.disabled=true; }
-    async function stop(){ if(stopped) return; stopped=true; clearSilence(); if(stopTimer){ clearTimeout(stopTimer); stopTimer=null; } setStatus('통화를 정리하고 기억에 저장하는 중...'); cleanup(); await updateMemory(); await logSession(); setStatus('■ 통화가 끝났어요. 수고하셨습니다.'); }
+    function clearMaxCallTimer(){ if(maxCallTimer){ clearTimeout(maxCallTimer); maxCallTimer=null; } }
+    function armMaxCallTimer(){
+      clearMaxCallTimer();
+      // 4분 50초에 자연스러운 작별 발화 트리거 → 5분 10초에 강제 종료(안전망)
+      maxCallTimer = setTimeout(()=>{
+        if(ending||stopped) return;
+        ending=true; setStatus('약속한 통화 시간이 다 됐어요 — 마무리 인사 중...');
+        sayOnce('어르신, 오늘은 여기까지 말씀 나눠요. 또 곧 연락드릴게요. "안녕히 계세요." 라고 따뜻하고 짧게 인사만 하고 마무리하세요.');
+        scheduleStop(20000);
+      }, MAX_CALL_MS - 10000);
+    }
+    function cleanup(){ clearSilence(); clearMaxCallTimer(); if(pingTimer){ clearInterval(pingTimer); pingTimer=null; } stopVoiceFilter(); try{if(dc)dc.close();}catch{} try{if(pc)pc.close();}catch{} try{if(micStream)micStream.getTracks().forEach(t=>t.stop());}catch{} pc=dc=micStream=null; els.start.disabled=false; els.stop.disabled=true; }
+    async function stop(){ if(stopped) return; stopped=true; clearSilence(); clearMaxCallTimer(); if(stopTimer){ clearTimeout(stopTimer); stopTimer=null; } setStatus('통화를 정리하고 기억에 저장하는 중...'); cleanup(); await updateMemory(); await logSession(); setStatus('■ 통화가 끝났어요. 수고하셨습니다.'); }
     els.start.onclick = start; els.stop.onclick = ()=>{ ending=true; stop(); };
   </script>
 </body>
