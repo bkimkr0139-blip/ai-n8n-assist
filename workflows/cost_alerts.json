@@ -1,0 +1,69 @@
+{
+  "name": "cost_alerts",
+  "nodes": [
+    {
+      "id": "cron",
+      "name": "5분주기",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": {
+        "rule": { "interval": [ { "field": "minutes", "minutesInterval": 5 } ] }
+      }
+    },
+    {
+      "id": "agg",
+      "name": "후보조회",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [220, 0],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH today AS (SELECT to_char(now() AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD') AS day), sessions_today AS (SELECT s.id, s.device_id, COALESCE(NULLIF(p.name,''),'(이름없음)') AS name, (s.input_tokens*32.0 + s.output_tokens*64.0)/1e6 AS cost_usd FROM care_sessions s LEFT JOIN care_profiles p ON p.device_id=s.device_id WHERE (s.started_at AT TIME ZONE 'Asia/Seoul')::date = (now() AT TIME ZONE 'Asia/Seoul')::date), device_daily AS (SELECT device_id, MAX(name) AS name, SUM(cost_usd) AS day_cost FROM sessions_today GROUP BY device_id), global_daily AS (SELECT COALESCE(SUM(cost_usd),0) AS total FROM sessions_today), candidates AS (SELECT 'device:'||device_id||':'||(SELECT day FROM today)||':daily' AS alert_key, 1.0::numeric AS threshold, day_cost AS value, '⚠️ '||name||' 단말기 일일 사용 비용이 임계를 넘었습니다.'||chr(10)||'누적 $'||ROUND(day_cost::numeric,3)||' (임계 $1.00) · 단말기: '||substring(device_id,1,8) AS msg FROM device_daily WHERE day_cost > 1.0 UNION ALL SELECT 'session:'||id AS alert_key, 0.5::numeric AS threshold, cost_usd AS value, '⚠️ 단일 통화 비용이 임계를 넘었습니다.'||chr(10)||'통화 #'||id||' '||name||' $'||ROUND(cost_usd::numeric,3)||' (임계 $0.50) · 단말기: '||substring(device_id,1,8) AS msg FROM sessions_today WHERE cost_usd > 0.5 UNION ALL SELECT 'global:'||(SELECT day FROM today)||':daily' AS alert_key, 5.0::numeric AS threshold, total AS value, '🚨 전체 일일 사용 비용이 임계를 넘었습니다.'||chr(10)||'오늘 누적 $'||ROUND(total::numeric,3)||' (임계 $5.00) · 전체 모니터링 권장' AS msg FROM global_daily WHERE total > 5.0) SELECT c.alert_key, c.threshold, c.value, c.msg FROM candidates c LEFT JOIN cost_alerts a ON a.alert_key=c.alert_key WHERE a.alert_key IS NULL"
+      },
+      "credentials": { "postgres": { "id": "", "name": "pgvector RAG (n8n_rag)" } },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "build",
+      "name": "알림빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0],
+      "parameters": {
+        "jsCode": "const items=$input.all();\nconst out=[];\nfor(const it of items){ const j=it.json||{}; if(!j.alert_key) continue; const esc=s=>String(s==null?'':s).replace(/'/g,\"''\"); const q=\"INSERT INTO cost_alerts (alert_key, threshold_usd, last_value_usd, sent_at) VALUES ('\"+esc(j.alert_key)+\"',\"+(parseFloat(j.threshold)||0)+\",\"+(parseFloat(j.value)||0)+\",now()) ON CONFLICT (alert_key) DO UPDATE SET last_value_usd=EXCLUDED.last_value_usd, sent_at=now()\"; out.push({ json:{ alert_key:j.alert_key, msg:j.msg||'', threshold:j.threshold, value:j.value, query:q } }); }\nreturn out;"
+      }
+    },
+    {
+      "id": "tg",
+      "name": "텔레그램알림",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [660, 0],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "ADMIN_CHAT_ID",
+        "text": "={{ $json.msg }}",
+        "additionalFields": { "appendAttribution": false }
+      },
+      "credentials": { "telegramApi": { "id": "", "name": "Telegram Bot" } }
+    },
+    {
+      "id": "save",
+      "name": "알림기록",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [880, 0],
+      "parameters": { "operation": "executeQuery", "query": "={{ $json.query }}" },
+      "credentials": { "postgres": { "id": "", "name": "pgvector RAG (n8n_rag)" } }
+    }
+  ],
+  "connections": {
+    "5분주기":     { "main": [[ { "node": "후보조회",     "type": "main", "index": 0 } ]] },
+    "후보조회":     { "main": [[ { "node": "알림빌드",     "type": "main", "index": 0 } ]] },
+    "알림빌드":     { "main": [[ { "node": "텔레그램알림", "type": "main", "index": 0 } ]] },
+    "텔레그램알림": { "main": [[ { "node": "알림기록",     "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

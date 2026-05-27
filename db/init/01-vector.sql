@@ -59,6 +59,16 @@ CREATE TABLE IF NOT EXISTS llm_config (
 );
 INSERT INTO llm_config (id) VALUES (1) ON CONFLICT DO NOTHING;
 
+-- 비용 임계 알림 중복방지(cost_alerts 워크플로우가 5분마다 임계 초과 단말기/통화/전체 누적 감지·텔레그램 발송).
+-- alert_key 예: 'device:<id>:2026-05-27:daily' | 'session:<id>' | 'global:2026-05-27:daily'.
+-- 이미 발송된 키는 같은 알림을 다시 보내지 않도록 PK로 기록한다(하루가 바뀌면 새 alert_key가 되어 자동 리셋).
+CREATE TABLE IF NOT EXISTS cost_alerts (
+  alert_key      text PRIMARY KEY,
+  threshold_usd  numeric,
+  last_value_usd numeric,
+  sent_at        timestamptz DEFAULT now()
+);
+
 -- 로컬 서버 시스템/LLM 부하 지표(단일 행, tools/metrics-agent.cjs가 /sys-push로 갱신 → admin.html 표시)
 CREATE TABLE IF NOT EXISTS sys_metrics (
   id         int PRIMARY KEY DEFAULT 1,
