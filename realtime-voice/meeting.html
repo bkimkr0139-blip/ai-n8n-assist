@@ -65,8 +65,8 @@
 
   <div class="card">
     <h2>📝 회의 정보</h2>
-    <label>제목</label>
-    <input id="m_title" type="text" placeholder="예) 5월 5주차 정기 회의" />
+    <label>제목 <span class="sub" style="font-weight:400">(비워두면 회의 내용에서 자동 생성)</span></label>
+    <input id="m_title" type="text" placeholder="비워두면 자동 생성 — 예) 5월 5주차 정기 회의" />
     <div class="row" style="margin-top:6px">
       <div style="flex:1">
         <label>일시</label>
@@ -80,7 +80,7 @@
     <label>참석자 (쉼표 또는 줄바꿈으로 구분)</label>
     <textarea id="m_attendees" placeholder="예) 김병철, 이미경, 박상훈"></textarea>
     <label>회의록 수신 이메일</label>
-    <input id="m_email" type="email" placeholder="회의록을 받을 이메일 주소" />
+    <input id="m_email" type="email" placeholder="회의록을 받을 이메일 주소" value="bckim@wizbase.co.kr" />
   </div>
 
   <div class="card">
@@ -214,9 +214,8 @@
   // ===== 녹음 종료 → 업로드 → 처리 =====
   async function onStopped(){
     if(!chunks.length){ alert('녹음된 데이터가 없어요.'); return; }
-    const title=($('m_title').value||'회의').trim();
-    const email=($('m_email').value||'').trim();
-    if(!email){ alert('회의록을 받을 이메일을 입력해 주세요.'); return; }
+    const title=($('m_title').value||'').trim();  // 비워도 OK — 서버에서 LLM이 자동 생성
+    const email=($('m_email').value||'bckim@wizbase.co.kr').trim();
     const blob = new Blob(chunks, { type: chunks[0].type || 'audio/webm' });
     const duration = Math.round((Date.now()-recStart)/1000);
 
@@ -247,10 +246,11 @@
       const j = await res.json().catch(()=>null);
       if(!j){ setStatus('err','응답을 해석하지 못했습니다.'); return; }
       setStep('s_stt','done','음성 인식 완료');
-      setStep('s_minutes','done','회의록 작성 완료');
+      const finalTitle = (j.title||title||'회의록').trim();
+      setStep('s_minutes','done','회의록 작성 완료'+(title?'':' · 제목 자동 생성: "'+finalTitle+'"'));
       if(j.email_ok){ setStep('s_email','done','이메일 전송 완료 → '+email); }
       else { setStep('s_email','active','이메일 전송 보류 ('+(j.email_error||'서버 설정 확인')+')'); }
-      setStatus('ok','✅ 회의록이 생성되었습니다.' + (j.email_ok?(' '+email+'로 메일을 보내 드렸어요.'):''));
+      setStatus('ok','✅ 회의록이 생성되었습니다.'+(title?'':' 제목: "'+finalTitle+'"')+(j.email_ok?(' · '+email+'로 메일을 보내 드렸어요.'):''));
       // 미리보기
       if(j.html){
         const iframe=document.createElement('iframe');
