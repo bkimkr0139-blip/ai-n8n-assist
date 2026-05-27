@@ -36,7 +36,7 @@
         "nodeCredentialType": "openAiApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ session: { type: 'realtime', model: 'gpt-realtime' } }) }}",
+        "jsonBody": "={{ JSON.stringify({ session: { type: 'realtime', model: 'gpt-realtime-mini' } }) }}",
         "options": {}
       },
       "credentials": {
