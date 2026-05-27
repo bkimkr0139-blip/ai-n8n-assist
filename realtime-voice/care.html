@@ -404,20 +404,24 @@
     function buildInstructions(){
       pastMem = loadMem();
       const region = (els.region.value||'서울').trim();
+      // [순서] OpenAI Prompt Caching(자동 50% 할인)이 적용될 수 있도록 prefix를 고정·반복 영역으로 채움.
+      //   매번 변하는 [현재 시각]은 맨 마지막에 둠 → 변하지 않는 PERSONA·맞춤설정·지역·인사·용건·복약·메모가
+      //   매 turn에서 동일한 prefix로 재사용되어 cache hit 확률 ↑. (Realtime이 caching 미지원이어도 무손해)
       let ins = PERSONA;
-      ins += '\n\n[현재 시각] '+getTimeNow()+' — 이 시스템의 실제 현재 시각입니다. 어르신이 시간·날짜·요일을 물으면 get_time 도구로 확인해 답하고(추측 금지), 복약 등 시간 안내도 반드시 이 현재 시각을 기준으로 하세요.';
-      ins += '\n\n[어르신 거주지역] '+region+'. 날씨를 여쭤보시면 get_weather 도구를 쓰세요. 지역을 따로 안 말씀하시면 거주지역('+region+')으로, 다른 지역을 말씀하시면 그 지역으로 조회하고, 결과를 다정하게 대화에 녹여 알려드리세요(예보 수치를 그대로 읽기보다 자연스럽게).';
       const cfg = (localStorage.getItem(CFG_KEY) || '').trim();
       if (cfg) ins += '\n\n[관리자 맞춤 설정 — 아래 지침을 최우선으로 따르세요]\n' + cfg;
+      ins += '\n\n[어르신 거주지역] '+region+'. 날씨를 여쭤보시면 get_weather 도구를 쓰세요. 지역을 따로 안 말씀하시면 거주지역('+region+')으로, 다른 지역을 말씀하시면 그 지역으로 조회하고, 결과를 다정하게 대화에 녹여 알려드리세요(예보 수치를 그대로 읽기보다 자연스럽게).';
       const worker = (els.worker.value||'').trim();
       ins += '\n\n[통화 시작 인사] 가장 먼저 공손히 인사하세요: "어르신, 안녕하세요. 저는 생활지원사 ' + (worker || '') + '입니다." (담당자 이름이 비어 있으면 "저는 생활지원사입니다"). 그런 다음 아래 용건을 말하세요.';
       if (PURPOSE === 'med') {
         ins += '\n[오늘 용건] 복약 안내 전화입니다. 약 드실 시간이 되어 연락드렸다고 따뜻하게 말하고, 약을 드셨는지 여쭤본 뒤 아직이면 지금 천천히 드시도록 다정하게 안내·확인하세요. 물도 한 잔 곁들이시도록 권하세요. 그 뒤 짧게 안부도 여쭤보세요.';
         let meds=''; try{ const ms=JSON.parse(localStorage.getItem('med_schedule')||'[]'); if(ms.length) meds=ms.map(m=>'- '+(m.time||'')+' '+(m.when||'')+': '+(m.med||'')).join('\n'); }catch(e){}
-        if(meds) ins += '\n[복약 일정]\n'+meds+'\n위 [현재 시각]과 복약 일정을 비교해, 지금 시각에 해당하는 약을 콕 집어 안내하세요(예: 아침 식후 치매약). 헷갈리면 get_time으로 현재 시각을 확인하세요. 시간이 안 맞는 약까지 굳이 다 읽지는 마세요.';
+        if(meds) ins += '\n[복약 일정]\n'+meds+'\n아래 [현재 시각]과 복약 일정을 비교해, 지금 시각에 해당하는 약을 콕 집어 안내하세요(예: 아침 식후 치매약). 헷갈리면 get_time으로 현재 시각을 확인하세요. 시간이 안 맞는 약까지 굳이 다 읽지는 마세요.';
       }
       else ins += '\n[오늘 용건] 안부 확인입니다. 식사·수면·기분·건강을 자연스럽게 여쭤보세요.';
       if (pastMem) ins += '\n\n[이 어르신과의 이전 통화 메모]\n' + pastMem + '\n인사와 용건 뒤, 위 메모에서 한 가지를 콕 집어 안부를 이어가세요(메모를 그대로 읽지 말고 대화에 녹이세요).';
+      // 매번 변동되는 부분은 instructions 맨 끝에
+      ins += '\n\n[현재 시각] '+getTimeNow()+' — 이 시스템의 실제 현재 시각입니다. 어르신이 시간·날짜·요일을 물으면 get_time 도구로 확인해 답하고(추측 금지), 복약 등 시간 안내도 반드시 이 현재 시각을 기준으로 하세요.';
       return ins;
     }
     function sessionConfig(){
@@ -577,6 +581,10 @@
     async function updateMemory(){
       sumIn=0; sumOut=0; sumProvider=''; sumModel='';
       if(turns.length < 2) return;
+      // 너무 짧은 통화는 메모리에 남길 가치가 적고(보통 인사 정도) 요약 LLM 호출도 낭비 → 스킵
+      // 5분 자동종료(=충분한 대화)·일반 종료(턴 충분)는 통과, 인사만 하고 끊긴 경우만 스킵
+      const callDur = sessionStart ? Math.round((Date.now()-sessionStart)/1000) : 0;
+      if(callDur < 50 && turns.length < 4){ add('sys','📓 짧은 통화라 메모는 따로 저장하지 않았어요.'); return; }
       const convo = turns.join('\n');
       try{
         const r = await fetch(SUMMARY_URL, { method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' },
