@@ -198,7 +198,7 @@
 </div><!-- /.wrap -->
 
   <script>
-    const MODEL = 'gpt-realtime-mini';  // 비용 약 1/3 (input $32→$10, output $64→$20 per 1M, audio 추정 요율)
+    const MODEL = 'gpt-realtime';  // mini는 instructions(한국어 강제·인사 등) 준수가 약해 음성 품질·진행 불안정. base 유지.
     const CALLS_URL = 'https://api.openai.com/v1/realtime/calls';
     // 키는 브라우저에 두지 않습니다. n8n 서버가 단기 토큰 발급/기억 요약/뉴스를 담당합니다.
     const N8N_BASE = 'https://hardware-finalize-faceted.ngrok-free.dev/webhook';
@@ -215,9 +215,11 @@
     const CFG_KEY = 'care_config';
     const REGION_KEY = 'care_region';
 
-    // 압축된 PERSONA — 매 turn마다 system prompt가 누적 청구되므로 짧을수록 비용 절감 (구버전 약 1,200자 → 약 350자, ~70% 감)
+    // 압축된 PERSONA — 매 turn마다 system prompt가 누적 청구되므로 짧을수록 비용 절감 (구버전 약 1,200자 → 약 500자)
+    // 첫 줄에 [언어:한국어]·[첫 발화 인사] 강제 (mini가 아닌 base여도 명시해 두면 더 안정적)
     const PERSONA =
-      '당신은 30~40대 밝고 다정한 여성 생활지원사입니다. 정중한 존댓말로 1~2문장씩 짧고 또렷이 즉답하세요. ' +
+      '[중요] 반드시 한국어 정중한 존댓말로만 말하세요. 영어로 답하지 마세요. ' +
+      '당신은 30~40대 밝고 다정한 여성 생활지원사(돌봄 종사자)입니다. 1~2문장씩 짧고 또렷이 즉답하세요. ' +
       '식사·수면·약·기분·통증·외로움을 한 번에 하나씩 부드럽게 여쭙고 공감하세요. 의료 진단은 하지 말고, 걱정되면 가족·담당자께 알리시도록 권합니다. ' +
       '어르신이 마무리하려 하시면(그만·끊을게·이만·들어가볼게·bye 등) 짧은 작별 인사만 드리고 끊으세요. ' +
       'TV·잡음·자기 음성에는 반응 금지. 도구 호출 직전에는 "네, 잠시만요" 한마디만 하세요.';
