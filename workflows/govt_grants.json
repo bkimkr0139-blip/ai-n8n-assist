@@ -1,0 +1,76 @@
+{
+  "name": "[BC·자동] 🔎 AI 정부공모 브리핑 (govt_grants)",
+  "nodes": [
+    {
+      "id": "cron",
+      "name": "매일0830",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": {
+        "rule": { "interval": [ { "field": "days", "triggerAtHour": 8, "triggerAtMinute": 30 } ] }
+      }
+    },
+    {
+      "id": "build",
+      "name": "프롬프트빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "parameters": {
+        "jsCode": "const today = new Date().toLocaleDateString('ko-KR', { timeZone:'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit' });\nconst sys = '당신은 한국 정부 지원사업 리서치 전문가입니다. 웹을 검색해 사실만 정확히 보고하며 추측하지 않습니다. 마감일이 지난 사업은 절대 포함하지 않습니다. 출력은 한국어로만 합니다.';\nconst user = '오늘은 '+today+'입니다. 오늘 기준으로 아직 마감되지 않았고 현재 접수 중인 \"AI(인공지능) 주제\" 정부 공모·지원사업만 조사해 주세요.\\n\\n대상 기관(우선): 과학기술정보통신부, 중소벤처기업부, 산업통상자원부, 정보통신산업진흥원(NIPA), 범부처통합연구지원시스템(IRIS). 그 외 공개된 정부/공공기관 AI 공모도 포함 가능.\\n\\n조건:\\n- 신청 마감일이 '+today+' 이후인 것만 (마감 지난 것 제외)\\n- AI/인공지능과 직접 관련된 주제만\\n- 확인 가능한 출처(공식 공고 URL)가 있는 것만\\n\\n각 사업을 다음 칼럼의 HTML <table>로만 출력하세요(설명 문장 없이 표만, <html>/<body> 태그 제외):\\n칼럼 순서: 사업명 | 주관기관 | 신청기간(접수마감일 명시) | 지원대상 | 공고링크(<a href>)\\n접수 중인 사업이 없으면 \"<p>오늘 기준 신규 접수 중인 AI 공모가 확인되지 않았습니다.</p>\" 라고만 출력하세요.';\nconst body = { model: 'sonar-pro', messages: [{role:'system',content:sys},{role:'user',content:user}], temperature: 0.1, search_recency_filter: 'month', return_citations: true };\nreturn [{ json: { body: JSON.stringify(body), today } }];"
+      }
+    },
+    {
+      "id": "pplx",
+      "name": "Perplexity검색",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.perplexity.ai/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "", "name": "Perplexity API (Header: Authorization = Bearer <YOUR_PERPLEXITY_KEY>)" } }
+    },
+    {
+      "id": "html",
+      "name": "HTML조립",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0],
+      "parameters": {
+        "jsCode": "const r = $input.first().json || {};\nlet content = (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content) || '';\ncontent = content.replace(/^```(?:html)?\\s*/i,'').replace(/```\\s*$/,'').trim();\nconst cites = Array.isArray(r.citations) ? r.citations : [];\nlet citeHtml = '';\nif(cites.length){ citeHtml = '<h3>출처</h3><ol>' + cites.map(c=>'<li><a href=\"'+c+'\">'+c+'</a></li>').join('') + '</ol>'; }\nlet today=''; try{ today = $('프롬프트빌드').first().json.today; }catch(e){ today = new Date().toLocaleDateString('ko-KR'); }\nconst html = ['<!DOCTYPE html>','<html lang=\"ko\"><head><meta charset=\"UTF-8\"><title>AI 정부공모 브리핑</title>','<style>','body{font-family:\"Pretendard\",\"맑은 고딕\",sans-serif;max-width:860px;margin:24px auto;padding:0 18px;color:#1f2a44;line-height:1.6}','h1{border-bottom:3px solid #3d7be8;padding-bottom:8px;color:#2e5fbf}','h3{margin-top:24px;color:#34507e}','table{border-collapse:collapse;width:100%;margin:14px 0;font-size:.93rem}','th,td{border:1px solid #dde3ee;padding:8px 10px;text-align:left;vertical-align:top}','th{background:#eef3fb;color:#2e5fbf;white-space:nowrap}','a{color:#2e6fae}','ol li{margin:3px 0;word-break:break-all;font-size:.85rem}','.meta{background:#f5f7fb;border:1px solid #dde3ee;border-radius:10px;padding:10px 14px;margin:12px 0;color:#475569;font-size:.9rem}','.footer{margin-top:30px;padding-top:14px;border-top:1px solid #dde3ee;color:#6b7793;font-size:.84rem}','</style></head><body>','<h1>🔎 오늘의 AI 정부공모 브리핑</h1>','<div class=\"meta\">기준일: '+today+' · 검색: Perplexity sonar-pro · 마감 전 접수중인 AI 공모만 추린 결과</div>',content,citeHtml,'<div class=\"footer\">🤖 자동 생성 · 매일 아침 08:30 발송 · 내용은 공식 공고를 반드시 재확인하세요</div>','</body></html>'].join('\\n');\nreturn [{ json: { html, today } }];"
+      }
+    },
+    {
+      "id": "mail",
+      "name": "이메일전송",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [880, 0],
+      "parameters": {
+        "fromEmail": "SENDER_NAME <SENDER_EMAIL>",
+        "toEmail": "DEFAULT_RECIPIENT_EMAIL",
+        "subject": "=🔎 [AI 정부공모 브리핑] {{ $json.today }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": { "appendAttribution": false }
+      },
+      "credentials": { "smtp": { "id": "", "name": "SMTP" } }
+    }
+  ],
+  "connections": {
+    "매일0830":     { "main": [[ { "node": "프롬프트빌드", "type": "main", "index": 0 } ]] },
+    "프롬프트빌드":  { "main": [[ { "node": "Perplexity검색", "type": "main", "index": 0 } ]] },
+    "Perplexity검색": { "main": [[ { "node": "HTML조립", "type": "main", "index": 0 } ]] },
+    "HTML조립":     { "main": [[ { "node": "이메일전송", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Seoul" }
+}
