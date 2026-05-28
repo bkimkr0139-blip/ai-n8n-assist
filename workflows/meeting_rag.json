@@ -1,0 +1,84 @@
+{
+  "name": "meeting_rag",
+  "nodes": [
+    {
+      "id": "wh",
+      "name": "RAG웹훅",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "meeting-rag-index",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meeting-rag-index",
+        "responseMode": "lastNode",
+        "options": { "allowedOrigins": "*" }
+      }
+    },
+    {
+      "id": "prep",
+      "name": "텍스트정리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "parameters": {
+        "jsCode": "const b = ($input.first().json.body) || {};\nconst title = (b.title || '회의록').toString().trim();\nconst html = (b.html || '').toString();\nconst email = (b.email || '').toString().trim();\nconst date = (b.date || new Date().toISOString()).toString();\nlet text = html\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<\\/?(h1|h2|h3|h4|h5|h6|p|li|div|tr|br)[^>]*>/gi, '\\n')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '\"').replace(/&#39;/g, \"'\")\n  .replace(/[ \\t]+/g, ' ')\n  .replace(/\\n{3,}/g, '\\n\\n')\n  .trim();\nconst input = (title + '\\n\\n' + text).slice(0, 24000);\nconst metadata = { source: 'meeting', title, email, date, length: text.length };\nconst llmBody = { model: 'text-embedding-3-small', input };\nreturn [{ json: { title, text, email, date, metadata, llm_body: JSON.stringify(llmBody) } }];"
+      }
+    },
+    {
+      "id": "emb",
+      "name": "임베딩",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.llm_body }}",
+        "options": {}
+      },
+      "credentials": { "openAiApi": { "id": "", "name": "OpenAI" } }
+    },
+    {
+      "id": "qbuild",
+      "name": "INSERT빌드",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0],
+      "parameters": {
+        "jsCode": "const emb = $input.first().json || {};\nconst vec = (emb.data && emb.data[0] && emb.data[0].embedding) || [];\nif(!Array.isArray(vec) || vec.length === 0) throw new Error('embedding 응답이 비어 있습니다');\nconst prep = $('텍스트정리').first().json;\nconst esc = s => String(s==null?'':s).replace(/'/g, \"''\");\nconst vecStr = '[' + vec.join(',') + ']';\nconst metaJson = JSON.stringify(prep.metadata||{});\nconst text = String(prep.text||'').slice(0, 60000);\nconst query = \"INSERT INTO telegram_docs (text, metadata, embedding) VALUES ('\" + esc(text) + \"', '\" + esc(metaJson) + \"'::jsonb, '\" + vecStr + \"'::vector) RETURNING id\";\nreturn [{ json: { query, title: prep.title, dim: vec.length } }];"
+      }
+    },
+    {
+      "id": "ins",
+      "name": "저장",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [880, 0],
+      "parameters": { "operation": "executeQuery", "query": "={{ $json.query }}" },
+      "credentials": { "postgres": { "id": "", "name": "pgvector RAG (n8n_rag)" } }
+    },
+    {
+      "id": "resp",
+      "name": "응답",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 0],
+      "parameters": {
+        "jsCode": "let id='', title='', dim=0;\ntry{ const r=$input.first().json; id=String(r.id||''); }catch(e){}\ntry{ const q=$('INSERT빌드').first().json; title=q.title||''; dim=q.dim||0; }catch(e){}\nreturn [{ json: { ok: true, id, title, dim } }];"
+      }
+    }
+  ],
+  "connections": {
+    "RAG웹훅":     { "main": [[ { "node": "텍스트정리", "type": "main", "index": 0 } ]] },
+    "텍스트정리":  { "main": [[ { "node": "임베딩",     "type": "main", "index": 0 } ]] },
+    "임베딩":     { "main": [[ { "node": "INSERT빌드", "type": "main", "index": 0 } ]] },
+    "INSERT빌드": { "main": [[ { "node": "저장",       "type": "main", "index": 0 } ]] },
+    "저장":       { "main": [[ { "node": "응답",       "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Seoul" }
+}

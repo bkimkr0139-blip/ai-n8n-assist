@@ -110,6 +110,15 @@
     <div class="step" id="s_minutes"><span class="ico">📝</span><span>회의록 작성 (화자 분류·요약)</span></div>
     <div class="step" id="s_email"><span class="ico">✉️</span><span>이메일 전송</span></div>
     <div id="statusMsg"></div>
+    <div id="ragBox" style="display:none;margin-top:14px;padding:14px;background:#eef3fb;border:1px solid #cdd9ee;border-radius:12px">
+      <div style="font-weight:700;color:#2e5fbf;margin-bottom:6px">📚 이 회의록을 검색에 등록할까요?</div>
+      <div class="sub" style="margin-bottom:10px">동의하시면 텔레그램 BC봇에서 이 회의록을 검색·인용할 수 있게 RAG 벡터스토어에 저장합니다. (검색 데이터에 추가되며, 발송된 이메일과는 별개입니다.)</div>
+      <div class="row" style="gap:10px">
+        <button id="ragYes" style="flex:0 0 auto">✅ 등록하기</button>
+        <button id="ragNo" class="alt" style="flex:0 0 auto">아니요, 이번엔 그냥</button>
+      </div>
+      <div id="ragMsg" class="sub" style="margin-top:10px"></div>
+    </div>
     <div id="resultPreview" style="margin-top:12px"></div>
   </div>
 
@@ -251,6 +260,14 @@
       if(j.email_ok){ setStep('s_email','done','이메일 전송 완료 → '+email); }
       else { setStep('s_email','active','이메일 전송 보류 ('+(j.email_error||'서버 설정 확인')+')'); }
       setStatus('ok','✅ 회의록이 생성되었습니다.'+(title?'':' 제목: "'+finalTitle+'"')+(j.email_ok?(' · '+email+'로 메일을 보내 드렸어요.'):''));
+      // RAG 등록 옵션 노출
+      if(j.html){
+        $('ragBox').style.display='block';
+        $('ragMsg').textContent='';
+        $('ragYes').disabled=false; $('ragNo').disabled=false;
+        $('ragYes').onclick = ()=> registerRag(finalTitle, j.html, email);
+        $('ragNo').onclick  = ()=> { $('ragMsg').textContent='등록하지 않았습니다.'; $('ragYes').disabled=true; $('ragNo').disabled=true; };
+      }
       // 미리보기
       if(j.html){
         const iframe=document.createElement('iframe');
@@ -263,6 +280,22 @@
       setStatus('err','전송 실패: '+(e&&e.message||e));
     }
   }
+  // 📚 RAG에 회의록 등록 — 사용자 승인 후 호출
+  const RAG_URL = N8N_BASE + '/meeting-rag-index';
+  async function registerRag(title, html, email){
+    $('ragYes').disabled=true; $('ragNo').disabled=true;
+    $('ragMsg').textContent='⏳ 검색 데이터베이스에 등록 중...';
+    try{
+      const r = await fetch(RAG_URL, { method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body: JSON.stringify({ title, html, email, date:new Date().toISOString() }) });
+      if(!r.ok){ const t=await r.text().catch(()=> ''); $('ragMsg').textContent='⚠️ 등록 실패 ('+r.status+'): '+t.slice(0,200); $('ragYes').disabled=false; $('ragNo').disabled=false; return; }
+      const j = await r.json().catch(()=>null);
+      if(j && j.ok){ $('ragMsg').innerHTML='✅ 등록되었습니다. 이제 텔레그램 BC봇에서 이 회의 내용을 검색·인용할 수 있어요.'; }
+      else { $('ragMsg').textContent='⚠️ 등록 응답이 정상이지 않습니다: '+(JSON.stringify(j).slice(0,200)); $('ragYes').disabled=false; $('ragNo').disabled=false; }
+    }catch(e){
+      $('ragMsg').textContent='⚠️ 등록 실패: '+(e&&e.message||e); $('ragYes').disabled=false; $('ragNo').disabled=false;
+    }
+  }
+
   function setStep(id, state, msg){
     const el=$(id); if(!el) return;
     el.classList.remove('active','done');
