@@ -76,6 +76,37 @@ n8n 2.20.11 + OpenAI에서 **AI Agent의 tool 연결이 schema 버그로 전부 
 8. n8n UI에서 워크플로우 탭을 열어두면 MCP 편집이 덮어써질 수 있음 → **MCP 편집 중 UI 탭 닫기**.
 9. webhook 직접 트리거는 Telegram secret-token 검증으로 403 → 실테스트는 텔레그램/브라우저에서.
 
+## 세션 업데이트 (2026-05-28) — BC통합비서 확장
+
+### 워크플로우 명명·그룹 체계 (운영 정리)
+라이브 n8n 11개 워크플로우를 prefix로 그룹핑: `[BC·메인]`(telegram_bot·care_api·admin_api·meeting_recorder) / `[BC·서브]`(send_email_tool·news_api·meeting_rag) / `[BC·자동]`(med_scheduler·cost_alerts·govt_grants*) / `[보관]`(미사용 2개). 색상 태그는 MCP `addTag`가 인스턴스 사전등록 태그만 부여 가능 → `tools/organize-workflows.ps1`(REST API)로 태그 5개 생성·부여·archive 일괄 처리(사용자 1회 실행). **이름만 바꿔도 webhook/ExecuteWorkflow는 ID 기반이라 작동 영향 없음.**
+
+### 신규 워크플로우
+- **meeting_recorder** (`/webhook/meeting-process`): 브라우저 녹음(webm) multipart 업로드 → Whisper STT(ko) → gpt-4o-mini가 화자 추론+양식 적용해 `{title,html}` JSON(response_format=json_object) → HTML 회의록 이메일. 제목 미입력 시 LLM 자동 생성. UI: `realtime-voice/meeting.html`. 텔레그램에 "회의/미팅" 키워드 → 링크 회신(telegram_bot에 `Meeting?` 분기 추가).
+- **meeting_rag** (`/webhook/meeting-rag-index`): 회의록 이메일 후 사용자 승인 시 HTML→text→`text-embedding-3-small`(1536d)→`telegram_docs` 직접 INSERT(직접 SQL, langchain 노드 미사용). metadata.source='meeting'. BC봇 Search RAG가 자동 검색.
+- **cost_alerts** (cron 5분): care_sessions 일일 비용 집계, 단말기 $1/통화 $0.5/전체 $5 임계 초과 시 텔레그램. **완전 멱등** — SELECT+INSERT를 한 CTE(`ON CONFLICT DO NOTHING RETURNING`)로 묶어 같은 alert_key 1회만 발송. DB: `cost_alerts(alert_key PK,...)`.
+- **govt_grants** (cron 08:30): **Perplexity sonar-pro**로 AI 정부공모 검색→표 이메일. ⚠️비활성(httpHeaderAuth credential 연결 필요, 유료).
+- **govt_grants_local** (cron 08:30, **활성**): **무료·로컬 RAG** — SearXNG(8888) 검색→본문 fetch/정제→`nomic-embed-text`(768d) 임베딩→코사인 유사도 상위8→`qwen2.5:3b` 요약→출처 포함 이메일. Code 노드에서 `this.helpers.httpRequest`로 외부호출. 엔드투엔드 테스트 통과.
+
+### 인프라 추가
+- **SearXNG**: `docker run searxng/searxng` (포트 8888). settings.yml의 `search.formats`에 `json` 추가해야 JSON API 동작. `tools/setup-searxng.sh`로 설치·활성화 자동화. ⚠️ PC 재부팅 시 자동시작 안 됨 → `docker update --restart unless-stopped searxng` 권장.
+- **Ollama**: `nomic-embed-text`(임베딩) 추가 설치. 기존 exaone3.5:2.4b·qwen2.5:3b·qwen2.5-coder:7b.
+
+### care.html 비용절감·품질개선 (모델/payload 불변, 작동성 우선)
+- ⚠️ **gpt-realtime-mini 시도→롤백**: mini는 instructions(한국어 강제·인사) 준수가 약해 영어로 답하고 인사 누락 → `gpt-realtime` 유지. **ephemeral token 모델은 care.html `MODEL`과 care_api 토큰발급 노드가 반드시 일치**해야 함(불일치 시 /realtime/calls 400).
+- 비용절감: 통화 5분 자동종료(`MAX_CALL_MS`), 무응답 22→8초·5→3회(`SILENCE_MS`/`MAX_NORESP`), PERSONA에 "응답 1~2문장", buildInstructions 순서 재배치(고정부 prefix화 → prompt caching 친화, 매번 변하는 `[현재 시각]`은 맨 끝), 50초 미만+4턴 미만 통화는 요약 LLM 스킵.
+- 품질: STT `language:'ko'` 고정(일/영 오인식 차단), PERSONA `[언어]` 한국어 강제, `[금지: 사실 창작]`(메모에 없는 "지난번 ~하셨죠" 환각 금지)+요약프롬프트도 "명시된 사실만". `[용어]` 생지사=생활지원사. `[연락 요청 처리]` 담당자 연락처 있으면 안내·없으면 메시지 남김(거짓약속 금지). 담당자 전화번호 입력(`care_worker_phone`).
+- **위기 시나리오**: care-admin.html에 `🆘 위기 상황 응대 시나리오`(`care_crisis_scenarios`) → care.html buildInstructions 최우선 섹션 삽입(119·가족연락·자세안내, 의료진단 금지).
+- 비용요율: admin.html `COST` gpt-realtime 기준 $32/$64(in/out per 1M)로 환원.
+
+### med.html 텔레그램 자동연결
+`care_profiles.telegram_chat_id` 컬럼. 봇 `/start link_<device_id>` → 자동 등록. med.html이 `/care-tg-status` 6초 폴링 → chat_id 자동 채움. 딥링크 `t.me/<bot>?start=link_<device_id>`.
+
+### 백업 정책
+- **형상관리**: `workflows/*.json`(sanitized) — credential id·토큰·이메일 placeholder.
+- **재해복구**: `tools/backup-workflows.ps1`로 라이브 전체 raw export → `workflows-backup/<날짜>/`(gitignore, 로컬 보관). raw엔 일부 노드에 실값 있을 수 있어 repo에 안 올림.
+- 라이브 source-of-truth: care_api(요약프롬프트 강화)·telegram_bot(Meeting?/TG Link 분기)은 라이브가 최신. 정확 복원은 raw 백업 사용.
+
 ## 알려진 한계 / 다음 후보
 - **진짜 음성 생체인식(화자 분리/학습) 미지원** — 단말기 식별 + 서버 기억 + 소음/VAD 튜닝으로 근사.
 - **자동 전화발신/SMS/웹푸시 미지원** — 텔레그램 알림+탭하면 통화 링크로 대체. 진짜 발신은 Twilio 등 전화망 연동 필요(미착수).

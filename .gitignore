@@ -22,3 +22,6 @@ ngrok.err
 Thumbs.db
 .vscode/
 .idea/
+
+# n8n 라이브 워크플로우 재해복구 백업(실값 포함 가능, 로컬 전용)
+workflows-backup/
