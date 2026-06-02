@@ -100,7 +100,7 @@
     <div class="timer" id="timer">00:00</div>
     <div class="level"><div id="levelBar"></div></div>
     <button id="recBtn" class="recBtn">🔴 회의 시작</button>
-    <div class="sub" style="margin-top:8px">시작을 누르면 마이크 권한을 묻습니다. 회의가 끝나면 같은 버튼을 다시 눌러 종료하세요.</div>
+    <div class="sub" style="margin-top:8px">시작을 누르면 마이크 권한을 묻습니다. 회의가 끝나면 같은 버튼을 다시 눌러 종료하세요. 최대 약 2시간까지 녹음할 수 있으며, 한계에 가까워지면 자동 종료됩니다.</div>
   </div>
 
   <div class="card" id="resultCard" style="display:none">
@@ -173,8 +173,12 @@
   };
 
   // ===== 녹음 =====
-  let mediaStream=null, mediaRec=null, chunks=[], recStart=0, recTimer=null, audioCtx=null, analyser=null, levelRaf=null;
-  let recording=false;
+  // 긴 회의(최대 ~2시간) 대응: 음성용 저비트레이트 모노로 녹음해 단일 파일이
+  // Whisper 25MB / n8n 업로드 한계 안에 들어오게 한다. 24kbps × 2h ≈ 22MB.
+  const AUDIO_BPS = 24000;        // 음성 STT엔 충분, 2시간 ≈ 22MB
+  const MAX_UPLOAD_MB = 24;       // Whisper 25MB 한계 직전 — 도달 시 자동 종료
+  let mediaStream=null, mediaRec=null, chunks=[], recBytes=0, recStart=0, recTimer=null, audioCtx=null, analyser=null, levelRaf=null;
+  let recording=false, autoStopped=false;
   function fmt(ms){ const s=Math.floor(ms/1000); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
   function updateTimer(){ $('timer').textContent = fmt(Date.now()-recStart); }
   function updateLevel(){
@@ -186,15 +190,24 @@
     levelRaf=requestAnimationFrame(updateLevel);
   }
   async function startRec(){
-    try{ mediaStream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
+    try{ mediaStream = await navigator.mediaDevices.getUserMedia({ audio:{ channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
     catch(e){ alert('마이크 권한이 필요합니다: '+(e&&e.message||e)); return; }
-    chunks=[];
+    chunks=[]; recBytes=0; autoStopped=false;
     // 브라우저 호환을 위해 opus 우선, fallback mp4
     let mime='audio/webm;codecs=opus';
     if(!MediaRecorder.isTypeSupported(mime)) mime='audio/webm';
     if(!MediaRecorder.isTypeSupported(mime)) mime='audio/mp4';
-    mediaRec = new MediaRecorder(mediaStream, { mimeType: mime, audioBitsPerSecond: 64000 });
-    mediaRec.ondataavailable = (e)=>{ if(e.data && e.data.size>0) chunks.push(e.data); };
+    mediaRec = new MediaRecorder(mediaStream, { mimeType: mime, audioBitsPerSecond: AUDIO_BPS });
+    mediaRec.ondataavailable = (e)=>{
+      if(!(e.data && e.data.size>0)) return;
+      chunks.push(e.data); recBytes += e.data.size;
+      // 용량 한계 직전이면 자동 종료(무음 실패 대신 지금까지 녹음분으로 회의록 생성)
+      if(recording && !autoStopped && recBytes >= MAX_UPLOAD_MB*1024*1024){
+        autoStopped=true;
+        stopRec();
+        alert('녹음이 용량 한계('+MAX_UPLOAD_MB+'MB, 약 2시간)에 도달해 자동 종료했습니다.\n지금까지 녹음된 내용으로 회의록을 생성합니다.');
+      }
+    };
     mediaRec.onstop = onStopped;
     mediaRec.start(1000);
     audioCtx = new (window.AudioContext||window.webkitAudioContext)();
@@ -230,6 +243,12 @@
 
     $('resultCard').style.display='block';
     $('resultCard').scrollIntoView({ behavior:'smooth', block:'start' });
+    // 방어적 점검 — 자동 종료가 동작하면 사실상 도달하지 않음
+    if(blob.size > 24.5*1024*1024){
+      setStep('s_upload','','');
+      setStatus('err','녹음 파일이 너무 큽니다 ('+(blob.size/1024/1024).toFixed(1)+'MB). 음성 인식 한계(25MB)를 넘어 전송하지 않았습니다. 회의를 더 짧게 나눠 녹음해 주세요.');
+      return;
+    }
     setStep('s_upload','active','업로드 중 ('+(blob.size/1024/1024).toFixed(1)+' MB)…');
 
     const fd = new FormData();

@@ -49,6 +49,8 @@ services:
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?set N8N_ENCRYPTION_KEY in .env (e.g. openssl rand -hex 32)}
       N8N_DIAGNOSTICS_ENABLED: "false"
       N8N_RUNNERS_ENABLED: "true"
+      # 회의록 음성 업로드(긴 회의 ~2시간 ≈ 22MB) 대응 — 기본 16MB면 ~33분에 413.
+      N8N_PAYLOAD_SIZE_MAX: "64"
       N8N_PUBLIC_API_DISABLED: "false"
       # 음성 답장(Send Voice 노드)이 Telegram sendVoice API를 직접 호출할 때 쓰는 봇 토큰.
       # n8n 기본 Telegram 노드에 sendVoice가 없어 HTTP Request로 호출하며, 토큰을 워크플로우에

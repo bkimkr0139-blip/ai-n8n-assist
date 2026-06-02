@@ -36,7 +36,7 @@
             { "name": "response_format", "value": "verbose_json" }
           ]
         },
-        "options": {}
+        "options": { "timeout": 600000 }
       },
       "credentials": { "openAiApi": { "id": "", "name": "OpenAI" } }
     },
