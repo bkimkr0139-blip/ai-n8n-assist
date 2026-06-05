@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>n8n 워크플로우</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #1a1a24; overflow: hidden; }
+    #wrap { position: fixed; inset: 0; }
+    #frame {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      border: 0; display: block;
+    }
+    /* 로딩 오버레이 */
+    #loading {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 14px; color: #b9b9c9; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #1a1a24; transition: opacity .4s; z-index: 2;
+    }
+    #loading.hide { opacity: 0; pointer-events: none; }
+    .spin {
+      width: 38px; height: 38px; border-radius: 50%;
+      border: 3px solid #33334a; border-top-color: #ea4b71;
+      animation: r 0.9s linear infinite;
+    }
+    @keyframes r { to { transform: rotate(360deg); } }
+    #fallback {
+      position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+      z-index: 3; font: 12px system-ui, sans-serif; color: #9a9aae;
+      background: rgba(40,40,56,.85); padding: 7px 13px; border-radius: 20px;
+      text-decoration: none; backdrop-filter: blur(4px);
+    }
+    #fallback:hover { color: #fff; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="loading">
+      <div class="spin"></div>
+      <div>n8n 워크플로우 불러오는 중…</div>
+    </div>
+
+    <!-- n8n 외부 URL (ngrok) — 워크플로우 목록 화면 -->
+    <iframe
+      id="frame"
+      src="https://hardware-finalize-faceted.ngrok-free.dev/home/workflows"
+      title="n8n 워크플로우"
+      allow="clipboard-read; clipboard-write; fullscreen"
+      referrerpolicy="no-referrer-when-downgrade"
+      loading="eager"></iframe>
+
+    <!-- iframe이 차단(쿠키/경고)될 때 새 탭으로 여는 폴백 -->
+    <a id="fallback" href="https://hardware-finalize-faceted.ngrok-free.dev/home/workflows" target="_blank" rel="noopener">
+      ↗ 새 탭에서 n8n 열기
+    </a>
+  </div>
+
+  <script>
+    var frame = document.getElementById('frame');
+    var loading = document.getElementById('loading');
+    frame.addEventListener('load', function () {
+      // 로드 완료 → 오버레이 숨김
+      loading.classList.add('hide');
+    });
+    // 안전장치: 8초 뒤에도 load 못 받으면 오버레이는 치워 폴백 링크가 보이게
+    setTimeout(function () { loading.classList.add('hide'); }, 8000);
+  </script>
+</body>
+</html>
