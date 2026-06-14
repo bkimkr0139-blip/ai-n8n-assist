@@ -321,7 +321,7 @@
 
     let pc=null, dc=null, micStream=null, aiBuf='', turns=[], pastMem='', endRequested=false, ending=false;
     let sessionStart=0, tokIn=0, tokOut=0, tokTotal=0, pingTimer=null;
-    let silenceTimer=null, noResp=0, stopTimer=null, stopped=false;
+    let silenceTimer=null, noResp=0, stopTimer=null, stopped=false, greeted=false, greetTimer=null;
     let sumIn=0, sumOut=0, sumProvider='', sumModel='';   // 통화 후 요약 LLM 사용량+모델명
     // 도구 호출: 결과 제출 후 즉시 response.create (OpenAI 공식 패턴). deferred는 오히려 race 유발해 1차 응답 누락.
     const SILENCE_MS=8000;    // AI가 말한 뒤 어르신 응답 대기 시간(짧을수록 무응답 통화 누적 비용 절감)
@@ -545,6 +545,8 @@
     function armSilence(){ clearSilence(); if(ending||stopped) return; silenceTimer=setTimeout(onSilence, SILENCE_MS); }
     function scheduleStop(ms){ if(stopTimer) clearTimeout(stopTimer); stopTimer=setTimeout(()=>stop(), ms); }
     function sayOnce(instr){ try{ dc.send(JSON.stringify({ type:'response.create', response:{ instructions: instr } })); }catch(e){} }
+    // 첫 인사: session.update가 서버에 적용된 뒤(session.updated)에만 한 번 트리거 → 설정(인사 지침·목소리·VAD) 적용 전 인사 시작으로 인한 버벅임/재시작 방지
+    function sendGreeting(){ if(greeted) return; greeted=true; if(greetTimer){ clearTimeout(greetTimer); greetTimer=null; } try{ dc.send(JSON.stringify({ type:'response.create' })); }catch(e){} }
     function onSilence(){
       if(ending||stopped) return; clearSilence(); noResp++;
       if(noResp>=MAX_NORESP){
@@ -563,7 +565,7 @@
     async function start(){
       saveProfile();
       els.start.disabled = true; turns = []; endRequested=false; ending=false;
-      sessionStart = Date.now(); tokIn=0; tokOut=0; tokTotal=0; noResp=0; stopped=false; clearSilence();
+      sessionStart = Date.now(); tokIn=0; tokOut=0; tokTotal=0; noResp=0; stopped=false; greeted=false; if(greetTimer){ clearTimeout(greetTimer); greetTimer=null; } clearSilence();
       // 서버(n8n)에서 단기 접속 토큰 발급 — API 키는 서버에만 있고 브라우저로 내려오지 않음
       let token='', tj=null;
       try { setStatus('🔑 연결 준비 중...'); const tr=await fetch(TOKEN_URL,{ method:'POST', headers:{ 'Content-Type':'application/json','ngrok-skip-browser-warning':'true' }, body:JSON.stringify({ device_id:DEVICE_ID }) }); if(tr.ok){ tj=await tr.json(); token=(tj&&tj.value)||''; } }
@@ -578,8 +580,9 @@
       if(gatedTrack && vfDest){ pc.addTrack(gatedTrack, vfDest.stream); }
       else { micStream.getTracks().forEach(t=> pc.addTrack(t, micStream)); }
       dc = pc.createDataChannel('oai-events');
-      dc.onopen = ()=>{ setStatus('🟢 연결됐어요 — 편하게 말씀하세요'); try{ dc.send(JSON.stringify(sessionConfig())); }catch{}; try{ dc.send(JSON.stringify({type:'response.create'})); }catch{}; add('sys', pastMem ? '이전 대화를 기억하고 있어요. 안부를 나눠요.' : '첫 통화예요. 밝게 인사드릴게요.'); };
+      dc.onopen = ()=>{ setStatus('🟢 연결됐어요 — 편하게 말씀하세요'); try{ dc.send(JSON.stringify(sessionConfig())); }catch{}; add('sys', pastMem ? '이전 대화를 기억하고 있어요. 안부를 나눠요.' : '첫 통화예요. 밝게 인사드릴게요.'); greetTimer=setTimeout(sendGreeting, 1500); };
       dc.onmessage = (e)=>{ let ev; try{ ev=JSON.parse(e.data); }catch{ return; } const t=ev.type||'';
+        if(t==='session.updated'){ sendGreeting(); return; }   // 설정 적용 완료 → 그때 첫 인사 1회
         if(t==='response.output_item.done' && ev.item && ev.item.type==='function_call'){ handleFunctionCall(ev.item); return; }
         if(t.indexOf('input_audio_transcription')>=0 && t.endsWith('.completed')){ if(ev.transcript){ const s=ev.transcript.trim(); clearSilence(); noResp=0; add('me','🗣️ '+s); turns.push('어르신: '+s); if(isEndIntent(s)) endRequested=true; } }
         else if(t.endsWith('audio_transcript.delta')){ aiBuf += (ev.delta||''); clearSilence(); }
