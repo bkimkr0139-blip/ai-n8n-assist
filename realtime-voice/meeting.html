@@ -65,6 +65,10 @@
     <div class="level"><div id="levelBar"></div></div>
     <button id="recBtn" class="recBtn">🔴 회의 녹음 시작</button>
     <div class="sub" id="recHint" style="margin-top:10px">시작을 누르면 마이크 권한을 묻습니다. 회의가 끝나면 같은 버튼을 다시 눌러 종료하세요. 최대 약 2시간까지 녹음할 수 있어요.</div>
+    <div class="sub" style="margin:12px 0 0;text-align:center;color:#9aa6bd">— 또는 —</div>
+    <button id="fileBtn" class="alt" style="width:100%;margin-top:8px">📁 녹음 파일 올리기 (⌚️ 애플워치 음성 메모 등)</button>
+    <input id="fileInput" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm,.mp4,.aac" class="hide" />
+    <div class="sub" style="margin-top:6px">애플워치에는 브라우저가 없어 이 페이지가 안 열려요. 워치 <b>음성 메모</b> 앱으로 녹음 → 아이폰에 자동 동기화되면 여기서 그 파일을 올리면 동일하게 회의록이 작성됩니다.</div>
     <div class="emailLine">
       <span>📧 회의록 받는 사람:</span>
       <b id="emailShow"></b>
@@ -173,11 +177,18 @@
   async function onMeetingStop(blob, dur){
     $('recBtn').textContent='🔴 회의 녹음 시작'; $('recBtn').classList.remove('recording'); $('timer').classList.remove('recording');
     if(!blob.size){ alert('녹음된 데이터가 없어요.'); return; }
-    if(blob.size > 24.5*1024*1024){ showWork(); setWork('err','녹음 파일이 너무 큽니다('+(blob.size/1024/1024).toFixed(1)+'MB). 음성 인식 한계(25MB)를 넘어 전송하지 않았어요. 회의를 나눠 녹음해 주세요.'); return; }
+    processAudio(blob, 'meeting.webm');
+  }
+  // 녹음 파일 업로드 (애플워치 음성 메모 등) — 같은 파이프라인으로 처리
+  $('fileBtn').onclick = ()=> $('fileInput').click();
+  $('fileInput').onchange = (e)=>{ const f=e.target.files[0]; if(!f){ return; } processAudio(f, f.name||'meeting.m4a'); e.target.value=''; };
+
+  async function processAudio(blob, filename){
+    if(blob.size > 24.5*1024*1024){ showWork(); setWork('err','파일이 너무 큽니다('+(blob.size/1024/1024).toFixed(1)+'MB). 음성 인식 한계(25MB)를 넘어요. 더 짧게 녹음하거나 나눠서 올려 주세요.'); return; }
     showWork(); $('workHead').textContent='🤖 회의록 작성';
-    setWork('work','<span class="spin"></span>녹음을 업로드하고 화자 분류·요약으로 회의록을 작성하고 있어요... ('+(blob.size/1024/1024).toFixed(1)+'MB, 잠시 걸릴 수 있어요)');
+    setWork('work','<span class="spin"></span>오디오를 업로드하고 화자 분류·요약으로 회의록을 작성하고 있어요... ('+(blob.size/1024/1024).toFixed(1)+'MB, 잠시 걸릴 수 있어요)');
     $('draftBox').classList.add('hide'); $('reviseBox').classList.add('hide');
-    const fd=new FormData(); fd.append('audio', blob, 'meeting.webm'); fd.append('duration_sec', String(dur));
+    const fd=new FormData(); fd.append('audio', blob, filename);
     try{
       const r=await fetch(URL_PROCESS,{method:'POST',body:fd,headers:HDR});
       if(!r.ok){ const t=await r.text().catch(()=> ''); setWork('err','서버 오류('+r.status+'): '+t.slice(0,300)); return; }
