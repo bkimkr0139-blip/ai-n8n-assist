@@ -186,17 +186,20 @@
   async function processAudio(blob, filename){
     if(blob.size > 24.5*1024*1024){ showWork(); setWork('err','파일이 너무 큽니다('+(blob.size/1024/1024).toFixed(1)+'MB). 음성 인식 한계(25MB)를 넘어요. 더 짧게 녹음하거나 나눠서 올려 주세요.'); return; }
     showWork(); $('workHead').textContent='🤖 회의록 작성';
-    setWork('work','<span class="spin"></span>오디오를 업로드하고 화자 분류·요약으로 회의록을 작성하고 있어요... ('+(blob.size/1024/1024).toFixed(1)+'MB, 잠시 걸릴 수 있어요)');
     $('draftBox').classList.add('hide'); $('reviseBox').classList.add('hide');
+    const mb=(blob.size/1024/1024).toFixed(1), t0=Date.now();
+    const tick=()=>{ const s=Math.floor((Date.now()-t0)/1000); setWork('work','<span class="spin"></span>화자 분류·요약으로 회의록을 작성하고 있어요…<br><span class="sub">'+mb+'MB · 경과 '+Math.floor(s/60)+'분 '+String(s%60).padStart(2,'0')+'초 · <b>긴 회의는 수 분 걸릴 수 있어요</b>(보통 녹음 길이의 1/3쯤). 이 화면을 닫지 말고 기다려 주세요.</span>'); };
+    tick(); const procTimer=setInterval(tick, 1000);
     const fd=new FormData(); fd.append('audio', blob, filename);
     try{
       const r=await fetch(URL_PROCESS,{method:'POST',body:fd,headers:HDR});
+      clearInterval(procTimer);
       if(!r.ok){ const t=await r.text().catch(()=> ''); setWork('err','서버 오류('+r.status+'): '+t.slice(0,300)); return; }
       const j=await r.json().catch(()=>null);
       if(!j||!j.html){ setWork('err','회의록 생성에 실패했어요. 응답: '+JSON.stringify(j).slice(0,200)); return; }
       draft={ title:j.title||'회의록', attendees:j.attendees||'', body:j.body||'', html:j.html, transcript:j.transcript||'' };
       showDraft('✅ 회의록 초안이 완성됐어요.');
-    }catch(e){ setWork('err','전송 실패: '+(e&&e.message||e)); }
+    }catch(e){ clearInterval(procTimer); setWork('err','전송이 끊겼어요: '+(e&&e.message||e)+'<br><span class="sub">아주 긴 회의는 네트워크가 중간에 끊길 수 있어요. Wi-Fi에서 다시 시도하거나, 회의를 나눠 올려 주세요.</span>'); }
   }
 
   function showWork(){ $('workCard').classList.remove('hide'); $('workCard').scrollIntoView({behavior:'smooth',block:'start'}); }
