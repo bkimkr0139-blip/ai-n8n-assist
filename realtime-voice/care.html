@@ -329,7 +329,10 @@
     const MAX_CALL_MS = 5*60*1000;  // 통화 최대 시간(5분). 도달하면 AI가 자연스러운 작별 인사 후 자동 종료
     let maxCallTimer = null;
     const setStatus = (s)=> els.status.textContent = s;
-    function add(cls, text){ const d=document.createElement('div'); d.className='msg '+cls; d.textContent=text; els.log.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'end'}); }
+    function add(cls, text){ const d=document.createElement('div'); d.className='msg '+cls; d.textContent=text; els.log.appendChild(d);
+      // 긴 통화에서 DOM 누적(그림자·그라데이션 노드)으로 인한 렌더 렉 방지 — 화면엔 최근 40개만 유지(전체 기록은 turns[]에 보존되어 요약·로그에 사용)
+      while(els.log.childElementCount > 40){ els.log.removeChild(els.log.firstChild); }
+      d.scrollIntoView({block:'end'}); }   // smooth 제거: 메시지마다 스택되는 스크롤 애니메이션 렉 방지(즉시 스크롤)
     function loadMem(){ try { return localStorage.getItem(MEM_KEY)||''; } catch { return ''; } }
     function saveMem(t){ try { localStorage.setItem(MEM_KEY, t); } catch {} ; refreshMemUI(); }
     function refreshMemUI(){ const m=loadMem(); els.memstate.textContent = m ? '📓 이전 통화 기록 있음 (다음 통화에 반영됩니다)' : '📓 이전 기록 없음 (첫 통화)'; els.memtext.textContent = m || '(없음)'; }
@@ -491,7 +494,8 @@
       let rms=0; for(let i=0;i<buf.length;i++){ rms+=buf[i]*buf[i]; } rms=Math.sqrt(rms/buf.length);
       if(rms<0.01) return 0;
       const minP=Math.floor(sr/400), maxP=Math.floor(sr/70); let best=0, bestOff=-1;
-      for(let off=minP; off<=maxP; off++){ let s=0; for(let i=0;i<buf.length-off;i++){ s+=buf[i]*buf[i+off]; } if(s>best){ best=s; bestOff=off; } }
+      // 내부 합을 2칸씩 데시메이션 → 자기상관 비용 절반(게이트용 근사 F0엔 영향 미미, 메인스레드 부하↓)
+      for(let off=minP; off<=maxP; off++){ let s=0; for(let i=0;i<buf.length-off;i+=2){ s+=buf[i]*buf[i+off]; } if(s>best){ best=s; bestOff=off; } }
       if(bestOff<=0) return 0; const f0=sr/bestOff; return (f0>=70&&f0<=400)?f0:0;
     }
     // 처음 학습된 목소리를 이 단말기의 "기본 패턴"으로 확정. 중앙값 근처 샘플만 써서
@@ -521,18 +525,21 @@
         learnSamples=[]; gateOpen=true; learnStart=Date.now(); learnUntil = voiceLo? 0 : (Date.now()+2500);
         vfTimer = setInterval(()=>{
           if(!audioCtx) return;
-          vfAnalyser.getFloatTimeDomainData(vfBuf);
-          const f0 = estimatePitch(vfBuf, audioCtx.sampleRate);
-          let pass=true;
-          if(els.vfilter.checked){
-            if(f0>0){
-              if(!voiceLo){ learnSamples.push(f0); if(Date.now()>learnUntil && learnSamples.length>=8){ if(!lockProfile(Date.now()-learnStart>8000)) learnUntil=Date.now()+1000; } }
-              else { const tol=Math.max(25,(voiceHi-voiceLo)*0.35); pass=(f0>=voiceLo-tol && f0<=voiceHi+tol); }
-            } else { pass=gateOpen; }   // 무음/자음 구간은 직전 상태 유지(말 끊김 방지)
+          // 필터 OFF(기본값)면 무거운 피치 자기상관을 아예 돌리지 않음 — 게이트만 열어두고 즉시 반환(상시 CPU 부하 제거)
+          if(!(els.vfilter && els.vfilter.checked)){
+            if(!gateOpen){ gateOpen=true; try{ vfGate.gain.setTargetAtTime(1, audioCtx.currentTime, 0.04); }catch(e){ vfGate.gain.value=1; } }
+            return;
           }
+          vfAnalyser.getFloatTimeDomainData(vfBuf);
+          const f0 = estimatePitch(vfBuf, audioCtx.sampleRate);   // estimatePitch는 무음(RMS<0.01)이면 즉시 0 반환 → 침묵 구간은 저비용
+          let pass=true;
+          if(f0>0){
+            if(!voiceLo){ learnSamples.push(f0); if(Date.now()>learnUntil && learnSamples.length>=8){ if(!lockProfile(Date.now()-learnStart>8000)) learnUntil=Date.now()+1000; } }
+            else { const tol=Math.max(25,(voiceHi-voiceLo)*0.35); pass=(f0>=voiceLo-tol && f0<=voiceHi+tol); }
+          } else { pass=gateOpen; }   // 무음/자음 구간은 직전 상태 유지(말 끊김 방지)
           gateOpen=pass;
           try{ vfGate.gain.setTargetAtTime(pass?1:0, audioCtx.currentTime, 0.04); }catch(e){ vfGate.gain.value=pass?1:0; }
-        }, 70);
+        }, 90);
         return vfDest.stream.getAudioTracks()[0];
       }catch(e){ return null; }
     }
@@ -580,7 +587,7 @@
       if(gatedTrack && vfDest){ pc.addTrack(gatedTrack, vfDest.stream); }
       else { micStream.getTracks().forEach(t=> pc.addTrack(t, micStream)); }
       dc = pc.createDataChannel('oai-events');
-      dc.onopen = ()=>{ setStatus('🟢 연결됐어요 — 편하게 말씀하세요'); try{ dc.send(JSON.stringify(sessionConfig())); }catch{}; add('sys', pastMem ? '이전 대화를 기억하고 있어요. 안부를 나눠요.' : '첫 통화예요. 밝게 인사드릴게요.'); greetTimer=setTimeout(sendGreeting, 1500); };
+      dc.onopen = ()=>{ setStatus('🟢 연결됐어요 — 편하게 말씀하세요'); try{ dc.send(JSON.stringify(sessionConfig())); }catch{}; add('sys', pastMem ? '이전 대화를 기억하고 있어요. 안부를 나눠요.' : '첫 통화예요. 밝게 인사드릴게요.'); greetTimer=setTimeout(sendGreeting, 2500); };  // 폴백 상향: 정상은 session.updated가 즉시 인사 트리거, 느린 연결에서만 폴백
       dc.onmessage = (e)=>{ let ev; try{ ev=JSON.parse(e.data); }catch{ return; } const t=ev.type||'';
         if(t==='session.updated'){ sendGreeting(); return; }   // 설정 적용 완료 → 그때 첫 인사 1회
         if(t==='response.output_item.done' && ev.item && ev.item.type==='function_call'){ handleFunctionCall(ev.item); return; }
