@@ -64,7 +64,7 @@
     <div class="timer" id="timer">00:00</div>
     <div class="level"><div id="levelBar"></div></div>
     <button id="recBtn" class="recBtn">🔴 회의 녹음 시작</button>
-    <div class="sub" id="recHint" style="margin-top:10px">시작을 누르면 마이크 권한을 묻습니다. 회의가 끝나면 같은 버튼을 다시 눌러 종료하세요. 최대 약 2시간까지 녹음할 수 있어요.</div>
+    <div class="sub" id="recHint" style="margin-top:10px">시작을 누르면 마이크 권한을 묻습니다. 회의가 끝나면 같은 버튼을 다시 눌러 종료하세요. 긴 회의는 자동으로 여러 구간으로 나눠 처리하니 길이 걱정 없이 녹음하세요.</div>
     <div class="sub" style="margin:12px 0 0;text-align:center;color:#9aa6bd">— 또는 —</div>
     <button id="fileBtn" class="alt" style="width:100%;margin-top:8px">📁 녹음 파일 올리기 (⌚️ 애플워치 음성 메모 등)</button>
     <input id="fileInput" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm,.mp4,.aac" class="hide" />
@@ -125,7 +125,11 @@
   const URL_REVISE  = N8N_BASE + '/meeting-revise';
   const URL_SUBMIT  = N8N_BASE + '/meeting-submit';
   const URL_RAG     = N8N_BASE + '/meeting-rag-index';
+  const URL_STT     = N8N_BASE + '/meeting-stt';     // 긴 녹음 분할 전사: 청크 1개 → 텍스트
+  const URL_DRAFT   = N8N_BASE + '/meeting-draft';   // 합친 전사 텍스트 → 비동기 초안(job_id)
   const HDR = { 'ngrok-skip-browser-warning':'true' };
+  // 분할 전사 설정: 16kHz 모노 WAV, 9분/청크 ≈ 17MB (whisper 25MB·n8n payload 64MiB 안전)
+  const STT_RATE = 16000, CHUNK_SEC = 540, STT_CONCURRENCY = 2;
 
   // ===== 받는 사람 이메일: 기본값 고정 + 선택적으로 추가 =====
   const DEFAULT_EMAIL = 'bckim@wizbase.co.kr';
@@ -144,7 +148,7 @@
   let draft = null; // { title, attendees, body, html, transcript }
 
   // ===== 공용 녹음기 =====
-  const AUDIO_BPS = 24000, MAX_UPLOAD_MB = 24;
+  const AUDIO_BPS = 24000, MAX_UPLOAD_MB = 24, REC_MAX_MB = 80;
   function makeRecorder(timerEl, levelEl, onStop){
     let stream=null, rec=null, chunks=[], bytes=0, t0=0, tmr=null, ctx=null, ana=null, raf=null, on=false, auto=false;
     const fmt=ms=>{const s=Math.floor(ms/1000);return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');};
@@ -156,7 +160,7 @@
       chunks=[]; bytes=0; auto=false;
       let mime='audio/webm;codecs=opus'; if(!MediaRecorder.isTypeSupported(mime)) mime='audio/webm'; if(!MediaRecorder.isTypeSupported(mime)) mime='audio/mp4';
       rec=new MediaRecorder(stream,{mimeType:mime,audioBitsPerSecond:AUDIO_BPS});
-      rec.ondataavailable=e=>{ if(!(e.data&&e.data.size>0))return; chunks.push(e.data); bytes+=e.data.size; if(on&&!auto&&bytes>=MAX_UPLOAD_MB*1024*1024){ auto=true; stop(); alert('녹음이 용량 한계('+MAX_UPLOAD_MB+'MB)에 도달해 자동 종료했어요. 지금까지 내용으로 작성합니다.'); } };
+      rec.ondataavailable=e=>{ if(!(e.data&&e.data.size>0))return; chunks.push(e.data); bytes+=e.data.size; if(on&&!auto&&bytes>=REC_MAX_MB*1024*1024){ auto=true; stop(); alert('녹음이 용량 한계('+REC_MAX_MB+'MB)에 도달해 자동 종료했어요. 지금까지 내용으로 작성합니다.'); } };
       rec.onstop=()=>{ const blob=new Blob(chunks,{type:chunks[0]?chunks[0].type:'audio/webm'}); on=false; onStop(blob, Math.round((Date.now()-t0)/1000)); };
       rec.start(1000);
       ctx=new (window.AudioContext||window.webkitAudioContext)(); const src=ctx.createMediaStreamSource(stream); ana=ctx.createAnalyser(); ana.fftSize=512; src.connect(ana);
@@ -185,12 +189,15 @@
   $('fileInput').onchange = (e)=>{ const f=e.target.files[0]; if(!f){ return; } processAudio(f, f.name||'meeting.m4a'); e.target.value=''; };
 
   async function processAudio(blob, filename){
-    if(blob.size > 24.5*1024*1024){ showWork(); setWork('err','파일이 너무 큽니다('+(blob.size/1024/1024).toFixed(1)+'MB). 음성 인식 한계(25MB)를 넘어요. 더 짧게 녹음하거나 나눠서 올려 주세요.'); return; }
     showWork(); $('workHead').textContent='🤖 회의록 작성';
     $('draftBox').classList.add('hide'); $('reviseBox').classList.add('hide');
     const mb=(blob.size/1024/1024).toFixed(1), t0=Date.now();
-    const elapsed=()=>{ const s=Math.floor((Date.now()-t0)/1000); return Math.floor(s/60)+'분 '+String(s%60).padStart(2,'0')+'초'; };
-    // 1) 업로드 → 즉시 작업ID 발급(비동기). HTTP를 길게 붙잡지 않아 모바일/네트워크 타임아웃에 안전.
+    if(blob.size > MAX_UPLOAD_MB*1024*1024){
+      // 큰 파일(>24MB): 음성 인식 25MB 한계를 넘으므로 브라우저에서 구간 분할 → 각 구간 전사 → 합쳐 초안.
+      // (화자 분리는 안 되지만 길이 제한이 사라짐. 작은 파일은 아래 기존 화자분리 경로 그대로.)
+      return transcribeChunked(blob, filename, t0, mb);
+    }
+    // 작은 파일: 통째 업로드 → 즉시 작업ID(비동기) → 화자분리 포함 처리. HTTP를 길게 안 붙잡아 타임아웃 안전.
     setWork('work','<span class="spin"></span>오디오를 업로드하고 있어요… ('+mb+'MB)');
     let job='';
     try{
@@ -199,22 +206,97 @@
       if(!r.ok||!j||!j.job_id){ setWork('err','업로드 실패('+r.status+'): '+(j?JSON.stringify(j).slice(0,200):'')); return; }
       job=j.job_id;
     }catch(e){ setWork('err','업로드 전송 실패: '+(e&&e.message||e)); return; }
-    // 2) 상태 폴링 → 완료되면 초안 표시
-    const tick=()=>{ setWork('work','<span class="spin"></span>화자 분류·요약으로 회의록을 작성하고 있어요…<br><span class="sub">'+mb+'MB · 경과 '+elapsed()+' · <b>긴 회의는 수 분 걸릴 수 있어요</b>(녹음 길이의 1/3쯤). 화면을 닫아도 처리는 계속되지만, 결과를 보려면 열어 두세요.</span>'); };
-    tick(); const uiTimer=setInterval(tick, 1000);
-    const deadline=Date.now()+30*60*1000;
-    try{
-      while(Date.now()<deadline){
-        await new Promise(res=>setTimeout(res, 4000));
-        let s=null;
-        try{ s=await (await fetch(URL_STATUS+'?job_id='+encodeURIComponent(job),{headers:HDR})).json(); }catch(e){ continue; }
-        if(s && s.done && s.html){ clearInterval(uiTimer); draft={ title:s.title||'회의록', attendees:s.attendees||'', body:s.body||'', html:s.html, transcript:s.transcript||'' }; showDraft('✅ 회의록 초안이 완성됐어요.'); return; }
-        if(s && s.done && s.error){ clearInterval(uiTimer); setWork('err','처리 중 오류: '+s.error); return; }
-      }
-      clearInterval(uiTimer); setWork('err','처리가 예상보다 오래 걸려요(30분 초과). 회의를 나눠 올리거나 잠시 후 다시 시도해 주세요.');
-    }catch(e){ clearInterval(uiTimer); setWork('err','상태 확인 실패: '+(e&&e.message||e)); }
+    pollDraft(job, mb, t0);
   }
   function fd_of(blob, filename){ const fd=new FormData(); fd.append('audio', blob, filename); return fd; }
+
+  // ===== 상태 폴링(공용): job_id → 완료되면 초안 표시 =====
+  function pollDraft(job, mb, t0){
+    const elapsed=()=>{ const s=Math.floor((Date.now()-t0)/1000); return Math.floor(s/60)+'분 '+String(s%60).padStart(2,'0')+'초'; };
+    const tick=()=>{ setWork('work','<span class="spin"></span>화자 분류·요약으로 회의록을 작성하고 있어요…<br><span class="sub">'+mb+'MB · 경과 '+elapsed()+' · <b>긴 회의는 수 분 걸릴 수 있어요</b>. 화면을 닫아도 처리는 계속되지만, 결과를 보려면 열어 두세요.</span>'); };
+    tick(); const uiTimer=setInterval(tick, 1000);
+    const deadline=Date.now()+30*60*1000;
+    (async()=>{
+      try{
+        while(Date.now()<deadline){
+          await new Promise(res=>setTimeout(res, 4000));
+          let s=null;
+          try{ s=await (await fetch(URL_STATUS+'?job_id='+encodeURIComponent(job),{headers:HDR})).json(); }catch(e){ continue; }
+          if(s && s.done && s.html){ clearInterval(uiTimer); draft={ title:s.title||'회의록', attendees:s.attendees||'', body:s.body||'', html:s.html, transcript:s.transcript||'' }; showDraft('✅ 회의록 초안이 완성됐어요.'); return; }
+          if(s && s.done && s.error){ clearInterval(uiTimer); setWork('err','처리 중 오류: '+s.error); return; }
+        }
+        clearInterval(uiTimer); setWork('err','처리가 예상보다 오래 걸려요(30분 초과). 회의를 나눠 올리거나 잠시 후 다시 시도해 주세요.');
+      }catch(e){ clearInterval(uiTimer); setWork('err','상태 확인 실패: '+(e&&e.message||e)); }
+    })();
+  }
+
+  // ===== 긴 녹음 분할 전사: 디코드 → 16kHz 모노 → 구간 WAV → /meeting-stt 병렬 → 합쳐 /meeting-draft =====
+  async function loadMono16k(blob){
+    const ab = await blob.arrayBuffer();
+    const ac = new (window.AudioContext||window.webkitAudioContext)();
+    let decoded;
+    try{ decoded = await ac.decodeAudioData(ab); } finally{ try{ ac.close(); }catch(e){} }
+    const frames = Math.ceil(decoded.duration * STT_RATE) || 1;
+    const Off = window.OfflineAudioContext||window.webkitOfflineAudioContext;
+    const offline = new Off(1, frames, STT_RATE);
+    const src = offline.createBufferSource(); src.buffer = decoded; src.connect(offline.destination); src.start(0);
+    const rendered = await offline.startRendering();
+    return rendered.getChannelData(0); // Float32Array, 모노 16kHz
+  }
+  function encodeWavPCM16(f32, rate){
+    const len=f32.length, buf=new ArrayBuffer(44+len*2), v=new DataView(buf);
+    const w=(o,s)=>{ for(let i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); };
+    w(0,'RIFF'); v.setUint32(4,36+len*2,true); w(8,'WAVE'); w(12,'fmt ');
+    v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+    v.setUint32(24,rate,true); v.setUint32(28,rate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+    w(36,'data'); v.setUint32(40,len*2,true);
+    let o=44; for(let i=0;i<len;i++){ let s=Math.max(-1,Math.min(1,f32[i])); v.setInt16(o, s<0?s*0x8000:s*0x7FFF, true); o+=2; }
+    return new Blob([buf],{type:'audio/wav'});
+  }
+  async function transcribeChunked(blob, filename, t0, mb){
+    setWork('work','<span class="spin"></span>긴 녹음을 분석할 수 있게 변환하고 있어요… ('+mb+'MB)');
+    let mono;
+    try{ mono = await loadMono16k(blob); }
+    catch(e){ setWork('err','오디오를 해독하지 못했어요('+(e&&e.message||e)+'). mp3·m4a·wav·webm 형식으로 다시 시도해 주세요.'); return; }
+    const per = CHUNK_SEC*STT_RATE;
+    const total = Math.max(1, Math.ceil(mono.length/per));
+    const texts = new Array(total).fill('');
+    let done=0;
+    const prog=()=> setWork('work','<span class="spin"></span>긴 회의를 '+total+'개 구간으로 나눠 전사하고 있어요… ('+done+'/'+total+')<br><span class="sub">'+mb+'MB · 구간이 많으면 수 분 걸릴 수 있어요. 화면을 열어 두세요.</span>');
+    prog();
+    let idx=0;
+    async function worker(){
+      while(true){
+        const my=idx++; if(my>=total) break;
+        const wav=encodeWavPCM16(mono.subarray(my*per,(my+1)*per), STT_RATE);
+        let ok=false;
+        for(let attempt=0; attempt<3 && !ok; attempt++){
+          try{
+            const fd=new FormData(); fd.append('audio', wav, 'chunk'+my+'.wav');
+            const r=await fetch(URL_STT,{method:'POST',body:fd,headers:HDR});
+            const j=await r.json().catch(()=>null);
+            if(r.ok && j && typeof j.text==='string'){ texts[my]=j.text; ok=true; }
+          }catch(e){}
+          if(!ok) await new Promise(res=>setTimeout(res,1500));
+        }
+        if(!ok){ texts[my]='(이 구간 전사 실패)'; }
+        done++; prog();
+      }
+    }
+    const ws=[]; for(let w=0; w<Math.min(STT_CONCURRENCY,total); w++) ws.push(worker());
+    await Promise.all(ws);
+    const transcript = texts.join('\n').trim();
+    if(!transcript || transcript.replace(/\(이 구간 전사 실패\)/g,'').trim()===''){ setWork('err','전사 결과가 비어 있어요. 녹음에 음성이 있는지 확인해 주세요.'); return; }
+    setWork('work','<span class="spin"></span>전사를 모아 회의록 초안을 작성하고 있어요…');
+    let job='';
+    try{
+      const r=await fetch(URL_DRAFT,{method:'POST',headers:Object.assign({'Content-Type':'application/json'},HDR),body:JSON.stringify({transcript:transcript})});
+      const j=await r.json().catch(()=>null);
+      if(!r.ok||!j||!j.job_id){ setWork('err','초안 요청 실패('+r.status+'): '+(j?JSON.stringify(j).slice(0,200):'')); return; }
+      job=j.job_id;
+    }catch(e){ setWork('err','초안 요청 전송 실패: '+(e&&e.message||e)); return; }
+    pollDraft(job, mb, t0);
+  }
 
   function showWork(){ $('workCard').classList.remove('hide'); $('workCard').scrollIntoView({behavior:'smooth',block:'start'}); }
   function showDraft(statusMsg){
