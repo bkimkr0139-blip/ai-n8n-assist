@@ -59,6 +59,7 @@
   const CALLS_URL = 'https://api.openai.com/v1/realtime/calls';
   const N8N_BASE = 'https://bc.wizbase.ai.kr/webhook';
   const TOKEN_URL = N8N_BASE + '/cs-realtime-token';
+  const CALL_COMPLETED_URL = N8N_BASE + '/scargo-voice/call-completed';
   // 텔레그램 등 인앱 브라우저는 마이크(getUserMedia)를 막는 경우가 많아, 열리자마자 실제 Chrome으로 강제 이동.
   // Android: intent:// 로 OS 인텐트 리졸버를 거쳐 Chrome을 직접 호출(인앱 브라우저를 우회). iOS: Chrome 커스텀 스킴.
   // ponytail: iOS는 Chrome 미설치 시 아무 동작 없음(대체 브라우저 강제 방법이 OS 레벨에서 없음) — 재귀 방지는 forced=1 플래그.
@@ -94,6 +95,9 @@
   const qs = new URLSearchParams(location.search);
   const CASE_ID = (qs.get('case_id') || '').trim();
   const SCRIPT_TYPE = (qs.get('script_type') || '').trim();
+  const CAMPAIGN_ID = (qs.get('campaign_id') || '').trim();
+  const RECIPIENT_ID = (qs.get('recipient_id') || '').trim();
+  const ITEM_IDS = (qs.get('item_ids') || '').split(',').map((s) => s.trim()).filter(Boolean);
   let VARS = {};
   try { VARS = JSON.parse(qs.get('vars') || '{}'); } catch (e) {}
 
@@ -123,7 +127,7 @@
   const setStatus = (s) => els.status.textContent = s;
   function add(cls, text) { const d = document.createElement('div'); d.className = 'msg ' + cls; d.textContent = text; els.log.appendChild(d); d.scrollIntoView({ block: 'end' }); }
 
-  let pc = null, dc = null, micStream = null, aiBuf = '', turns = [], greeted = false, greetTimer = null;
+  let pc = null, dc = null, micStream = null, aiBuf = '', turns = [], greeted = false, greetTimer = null, sessionStartIso = '';
   let silenceTimer = null, noResp = 0, stopTimer = null, stopped = false, ending = false, endRequested = false;
   const SILENCE_MS = 9000, MAX_NORESP = 4;
   const END_PATTERNS = [/끊\s*(을게|을래|어요?)/, /그만\s*(할게|해요?)/, /이만(\s|$)/, /수고(했|하셨)/, /안녕히\s*(계세|가세)/, /\b(bye|goodbye|hang\s*up)\b/i];
@@ -150,8 +154,22 @@
     else { setStatus('고객 응답 대기 중...'); sayOnce('고객님이 잠시 응답이 없습니다. 정중하게 "고객님, 들리십니까?" 하고 짧게 한 번 더 확인하세요.'); }
   }
 
+  // S카고 AX 연계: 통화 종료 시 캠페인 발신 건이면 상담 결과를 서버로 전달(fire-and-forget, 실패해도 UI엔 영향 없음).
+  function reportCallCompleted(endedIso) {
+    if (!CAMPAIGN_ID) return;
+    try {
+      fetch(CALL_COMPLETED_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        campaign_id: CAMPAIGN_ID, recipient_id: RECIPIENT_ID, item_ids: ITEM_IDS,
+        case_id: CASE_ID, script_type: SCRIPT_TYPE,
+        started_at: sessionStartIso, ended_at: endedIso,
+        transcript: turns.slice(),
+      }) }).catch(() => {});
+    } catch (e) {}
+  }
+
   async function start() {
     els.start.disabled = true; turns = []; ending = false; endRequested = false; stopped = false; greeted = false; noResp = 0;
+    sessionStartIso = new Date().toISOString();
     if (greetTimer) { clearTimeout(greetTimer); greetTimer = null; } clearSilence();
     let token = '', tj = null;
     const passcode = getPasscode();
@@ -196,7 +214,7 @@
     } catch (err) { setStatus('❌ 오류: ' + (err && err.message ? err.message : err)); cleanup(); }
   }
   function cleanup() { clearSilence(); try { if (dc) dc.close(); } catch (e) {} try { if (pc) pc.close(); } catch (e) {} try { if (micStream) micStream.getTracks().forEach((t) => t.stop()); } catch (e) {} pc = dc = micStream = null; els.start.disabled = false; els.stop.disabled = true; }
-  function stop() { if (stopped) return; stopped = true; clearSilence(); if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; } setStatus('상담을 종료합니다...'); cleanup(); setStatus('■ 상담이 끝났습니다. 이용해 주셔서 감사합니다.'); }
+  function stop() { if (stopped) return; stopped = true; clearSilence(); if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; } setStatus('상담을 종료합니다...'); cleanup(); reportCallCompleted(new Date().toISOString()); setStatus('■ 상담이 끝났습니다. 이용해 주셔서 감사합니다.'); }
   els.start.onclick = start; els.stop.onclick = () => { ending = true; stop(); };
 </script>
 </body>
