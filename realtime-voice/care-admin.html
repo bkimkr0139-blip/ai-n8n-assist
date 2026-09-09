@@ -121,7 +121,7 @@
     els.clearcrisis.onclick = ()=>{ if(confirm('위기 시나리오를 초기화할까요?')){ localStorage.removeItem(CRISIS_KEY); els.crisis.value=''; setStatus('위기 시나리오를 초기화했습니다.'); } };
 
     // ===== 대상자(어르신) 음성/기억 관리 — 단말기 대상자 변경 유연성 =====
-    const N8N_BASE_ADMIN = 'https://hardware-finalize-faceted.ngrok-free.dev/webhook';
+    const N8N_BASE_ADMIN = 'https://bc.wizbase.ai.kr/webhook';
     const DEVICE_ID_ADMIN = localStorage.getItem('care_device_id') || '';
     function subjStateText(){
       const el=$('subjState');
