@@ -59,6 +59,28 @@
   const CALLS_URL = 'https://api.openai.com/v1/realtime/calls';
   const N8N_BASE = 'https://bc.wizbase.ai.kr/webhook';
   const TOKEN_URL = N8N_BASE + '/cs-realtime-token';
+  // 텔레그램 등 인앱 브라우저는 마이크(getUserMedia)를 막는 경우가 많아, 열리자마자 실제 Chrome으로 강제 이동.
+  // Android: intent:// 로 OS 인텐트 리졸버를 거쳐 Chrome을 직접 호출(인앱 브라우저를 우회). iOS: Chrome 커스텀 스킴.
+  // ponytail: iOS는 Chrome 미설치 시 아무 동작 없음(대체 브라우저 강제 방법이 OS 레벨에서 없음) — 재귀 방지는 forced=1 플래그.
+  (function () {
+    try {
+      var qs0 = new URLSearchParams(location.search);
+      if (qs0.get('forced') === '1') return;
+      var ua = navigator.userAgent || '';
+      var isAndroid = /Android/i.test(ua);
+      var isIOS = /iPhone|iPad|iPod/i.test(ua);
+      if (!isAndroid && !isIOS) return;
+      qs0.set('forced', '1');
+      var target = location.origin + location.pathname + '?' + qs0.toString();
+      if (isAndroid) {
+        var noScheme = target.replace(/^https?:\/\//, '');
+        location.href = 'intent://' + noScheme + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(target) + ';end';
+      } else {
+        location.href = target.replace(/^https:\/\//, 'googlechromes://').replace(/^http:\/\//, 'googlechrome://');
+      }
+    } catch (e) {}
+  })();
+
   const PASSCODE_KEY = 'cs_cargo_passcode';
   function getPasscode() {
     let p = ''; try { p = localStorage.getItem(PASSCODE_KEY) || ''; } catch (e) {}
