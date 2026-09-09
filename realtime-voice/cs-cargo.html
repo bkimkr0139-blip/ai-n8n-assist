@@ -98,11 +98,12 @@
   try { VARS = JSON.parse(qs.get('vars') || '{}'); } catch (e) {}
 
   const SCRIPTS = {
-    flight_cancel_notice: (v) => `[오늘 용건] ${v.flight_no ? v.flight_no + '편' : '해당 항공편'} 결항으로 인한 안내입니다. ` +
+    flight_cancel_notice: (v) => `${v.flight_no ? v.flight_no + '편' : '해당 항공편'} 결항으로 인한 안내입니다. ` +
       `새로운 예상 도착/처리 일정${v.new_eta ? '(' + v.new_eta + ')' : ''}을 안내하고, 고객의 의견(대체편 희망 여부, 이의 제기, 추가 요청)을 여쭤보세요.`,
-    claim_followup: (v) => `[오늘 용건] 접수된 클레임 건에 대한 후속 안내입니다. 처리 현황을 안내하고, 고객이 추가로 전달하고 싶은 내용이나 이견이 있는지 확인하세요.`,
+    claim_followup: (v) => `접수된 클레임 건에 대한 후속 안내입니다. 처리 현황을 안내하고, 고객이 추가로 전달하고 싶은 내용이나 이견이 있는지 확인하세요.`,
   };
-  const scriptText = (SCRIPTS[SCRIPT_TYPE] ? SCRIPTS[SCRIPT_TYPE](VARS) : '[오늘 용건] 일반 화물 처리 안내입니다.');
+  const hasCase = !!SCRIPTS[SCRIPT_TYPE];
+  const scriptText = hasCase ? SCRIPTS[SCRIPT_TYPE](VARS) : '이번 통화는 특정 케이스 없이 진행하는 데모 통화입니다. 결항·클레임 등 실제 사건 내용을 지어내지 말고, 무엇을 도와드릴지 여쭤보는 것으로 시작하세요.';
 
   document.getElementById('caseMeta').textContent = CASE_ID ? ('케이스 ' + CASE_ID + (SCRIPT_TYPE ? ' · ' + SCRIPT_TYPE : '')) : '(데모 — 케이스 없이 자유 대화)';
 
@@ -111,8 +112,10 @@
     '당신은 "서울항공화물" CS 상담원입니다. 항공화물(포워딩) 업무를 다루며, AWB(항공화물운송장)·결항·ETA(도착예정시각)·클레임 같은 용어를 정확히 씁니다. ' +
     '목소리는 침착하고 신뢰감 있게, 신속·정확을 우선합니다. 불필요한 잡담은 피하고 목적 지향적으로 진행하세요: (1) 용건을 명확히 전달 → (2) 고객의 확인/이견/요청을 경청 → (3) 필요시 간단히 재확인 → (4) 정중히 마무리. ' +
     '고객이 클레임이나 불만을 제기하면 절대 임의로 보상·환불을 약속하지 말고, "정확히 확인 후 담당자가 다시 연락드리겠습니다"라고 안내하세요. ' +
-    '응답은 1~2문장으로 짧고 명확하게 하세요. 고객이 통화를 마치고 싶어하면(그만/끊을게/이만 등) 길게 붙잡지 말고 정중히 마무리하세요.' +
-    '\n\n' + scriptText;
+    '응답은 1~2문장으로 짧고 명확하게 하세요. 고객이 통화를 마치고 싶어하면(그만/끊을게/이만 등) 길게 붙잡지 말고 정중히 마무리하세요. ' +
+    '[상담 시작 인사] 가장 먼저, 다른 어떤 말보다 먼저 이렇게 인사하세요: "안녕하세요, 서울항공화물입니다." 그런 다음 바로 이어서 아래 [오늘 용건]을 자연스럽게 전달하세요. 인사 없이 바로 용건이나 다른 이야기로 시작하지 마세요. ' +
+    '[금지: 사실 창작] 아래 [오늘 용건]에 적히지 않은 항공편명·날짜·금액·사건 경위 등은 절대 지어내 말하지 마세요. 확실하지 않은 내용은 "확인 후 다시 안내드리겠습니다"라고 답하세요.' +
+    '\n\n[오늘 용건] ' + scriptText;
 
   const $ = (id) => document.getElementById(id);
   const els = { start: $('start'), stop: $('stop'), status: $('status'), log: $('log'), audio: $('audio') };
@@ -126,9 +129,10 @@
   const isEndIntent = (t) => END_PATTERNS.some((re) => re.test((t || '').trim()));
 
   function sessionConfig() {
+    // 돌봄 서비스(care.html) 기본값과 동일하게 맞춤: voice=shimmer, speed=1.15, 소음환경 'normal' 프리셋.
     return { type: 'session.update', session: { type: 'realtime', instructions: PERSONA,
-      audio: { input: { transcription: { model: 'whisper-1', language: 'ko' }, turn_detection: { type: 'server_vad', threshold: 0.55, prefix_padding_ms: 200, silence_duration_ms: 500 } },
-                output: { voice: 'sage', speed: 1.05 } } } };
+      audio: { input: { transcription: { model: 'whisper-1', language: 'ko' }, noise_reduction: { type: 'far_field' }, turn_detection: { type: 'server_vad', threshold: 0.55, prefix_padding_ms: 200, silence_duration_ms: 500 } },
+                output: { voice: 'shimmer', speed: 1.15 } } } };
   }
   function clearSilence() { if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; } }
   function armSilence() { clearSilence(); if (ending || stopped) return; silenceTimer = setTimeout(onSilence, SILENCE_MS); }
