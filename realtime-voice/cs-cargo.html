@@ -83,8 +83,11 @@
 
   const PASSCODE_KEY = 'cs_cargo_passcode';
   function getPasscode() {
-    let p = ''; try { p = localStorage.getItem(PASSCODE_KEY) || ''; } catch (e) {}
-    if (!p) { p = (prompt('접속 코드를 입력하세요') || '').trim(); try { localStorage.setItem(PASSCODE_KEY, p); } catch (e) {} }
+    // 링크에 접속코드가 실려오면(텔레그램 버튼) 최우선 사용 — 수동 입력은 그 경우가 없을 때만 폴백.
+    let p = (new URLSearchParams(location.search).get('key') || '').trim();
+    if (!p) { try { p = localStorage.getItem(PASSCODE_KEY) || ''; } catch (e) {} }
+    if (!p) { p = (prompt('접속 코드를 입력하세요') || '').trim(); }
+    try { localStorage.setItem(PASSCODE_KEY, p); } catch (e) {}
     return p;
   }
 
