@@ -94,7 +94,7 @@
     $('key').value = localStorage.getItem('oai_key') || '';
     $('key').onchange = ()=> localStorage.setItem('oai_key', $('key').value.trim());
 
-    const N8N_URL_DEFAULT = 'https://hardware-finalize-faceted.ngrok-free.dev/webhook/med-config';
+    const N8N_URL_DEFAULT = 'https://bc.wizbase.ai.kr/webhook/med-config';
     $('chatid').value = localStorage.getItem('med_chatid') || '';
     $('n8nurl').value = localStorage.getItem('med_n8n_url') || N8N_URL_DEFAULT;
     $('chatid').onchange = ()=> localStorage.setItem('med_chatid', $('chatid').value.trim());

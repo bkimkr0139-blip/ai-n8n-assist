@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b3d91" />
+<title>✈️ 서울항공화물 CS 음성상담 (데모)</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  :root{ color-scheme: light; --bg-1:#eef2f9; --bg-2:#e2e9f5; --surface:#fff; --line:#d7deec;
+    --primary:#0b3d91; --primary-2:#134fb4; --primary-strong:#082a66; --danger:#b3433a; --txt:#1c2128; --mut:#6b6f78;
+    --r-md:14px; --r-lg:20px; --r-xl:28px; --shadow-md:0 6px 18px rgba(11,61,145,.10); --shadow-lg:0 16px 44px rgba(11,61,145,.16); }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; }
+  body{ font-family:'Pretendard Variable','Pretendard',system-ui,sans-serif; color:var(--txt);
+    background:linear-gradient(180deg,var(--bg-1) 0%,var(--bg-2) 100%); min-height:100vh; }
+  .wrap{ max-width:680px; margin:0 auto; padding:18px 18px 64px; }
+  .hero{ background:linear-gradient(135deg,#082a66 0%,#0b3d91 55%,#134fb4 100%); color:#fff; border-radius:var(--r-xl);
+    padding:26px 22px; box-shadow:var(--shadow-lg); margin-bottom:18px; }
+  .hero h1{ font-size:1.5rem; font-weight:800; margin:0; }
+  .hero .sub{ color:rgba(255,255,255,.9); font-size:.95rem; margin-top:6px; line-height:1.5; }
+  .hero .meta{ margin-top:12px; font-size:.85rem; color:rgba(255,255,255,.85); }
+  .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); padding:18px; margin:14px 0; box-shadow:var(--shadow-md); }
+  .bigbtn{ width:100%; font-size:1.25rem; font-weight:800; padding:18px; border-radius:var(--r-md); border:0; color:#fff; cursor:pointer;
+    background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%); margin-top:8px; }
+  .bigbtn.stop{ background:linear-gradient(180deg,#c75a51 0%,var(--danger) 100%); }
+  .bigbtn:disabled{ opacity:.4; cursor:not-allowed; }
+  #status{ font-size:1.02rem; padding:14px 16px; border-radius:var(--r-md); background:#eaf0fc; border:1px solid #cfdcf5;
+    margin:14px 0; text-align:center; color:var(--primary-strong); font-weight:600; }
+  #log{ display:flex; flex-direction:column; gap:10px; }
+  .msg{ padding:12px 15px; border-radius:16px; max-width:88%; white-space:pre-wrap; line-height:1.5; font-size:1.02rem; }
+  .me{ align-self:flex-end; background:#e9f1ff; color:#1d3a6a; }
+  .ai{ align-self:flex-start; background:#eaf6ee; color:#155831; }
+  .sys{ align-self:center; background:#f5edde; border:1px dashed var(--line); font-size:.88rem; color:var(--mut); border-radius:14px; padding:6px 12px; }
+  [hidden]{ display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <h1>✈️ 서울항공화물 AI 상담원</h1>
+    <div class="sub">항공화물 CS 음성상담 데모 — 버튼을 누르고 편하게 말씀하세요.</div>
+    <div class="meta" id="caseMeta"></div>
+  </header>
+
+  <div class="card">
+    <button id="start" class="bigbtn">▶ 상담 시작</button>
+    <button id="stop" class="bigbtn stop" disabled>■ 상담 종료</button>
+  </div>
+
+  <div id="status">대기 중 — [상담 시작]을 누르세요</div>
+  <div id="log"></div>
+  <audio id="audio" autoplay></audio>
+</div>
+
+<script>
+  const MODEL = 'gpt-realtime';
+  const CALLS_URL = 'https://api.openai.com/v1/realtime/calls';
+  const N8N_BASE = 'https://bc.wizbase.ai.kr/webhook';
+  const TOKEN_URL = N8N_BASE + '/cs-realtime-token';
+  // 텔레그램 등 인앱 브라우저는 마이크(getUserMedia)를 막는 경우가 많아, 열리자마자 실제 Chrome으로 강제 이동.
+  // Android: intent:// 로 OS 인텐트 리졸버를 거쳐 Chrome을 직접 호출(인앱 브라우저를 우회). iOS: Chrome 커스텀 스킴.
+  // ponytail: iOS는 Chrome 미설치 시 아무 동작 없음(대체 브라우저 강제 방법이 OS 레벨에서 없음) — 재귀 방지는 forced=1 플래그.
+  (function () {
+    try {
+      var qs0 = new URLSearchParams(location.search);
+      if (qs0.get('forced') === '1') return;
+      var ua = navigator.userAgent || '';
+      var isAndroid = /Android/i.test(ua);
+      var isIOS = /iPhone|iPad|iPod/i.test(ua);
+      if (!isAndroid && !isIOS) return;
+      qs0.set('forced', '1');
+      var target = location.origin + location.pathname + '?' + qs0.toString();
+      if (isAndroid) {
+        var noScheme = target.replace(/^https?:\/\//, '');
+        location.href = 'intent://' + noScheme + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(target) + ';end';
+      } else {
+        location.href = target.replace(/^https:\/\//, 'googlechromes://').replace(/^http:\/\//, 'googlechrome://');
+      }
+    } catch (e) {}
+  })();
+
+  const PASSCODE_KEY = 'cs_cargo_passcode';
+  function getPasscode() {
+    let p = ''; try { p = localStorage.getItem(PASSCODE_KEY) || ''; } catch (e) {}
+    if (!p) { p = (prompt('접속 코드를 입력하세요') || '').trim(); try { localStorage.setItem(PASSCODE_KEY, p); } catch (e) {} }
+    return p;
+  }
+
+  const qs = new URLSearchParams(location.search);
+  const CASE_ID = (qs.get('case_id') || '').trim();
+  const SCRIPT_TYPE = (qs.get('script_type') || '').trim();
+  let VARS = {};
+  try { VARS = JSON.parse(qs.get('vars') || '{}'); } catch (e) {}
+
+  const SCRIPTS = {
+    flight_cancel_notice: (v) => `[오늘 용건] ${v.flight_no ? v.flight_no + '편' : '해당 항공편'} 결항으로 인한 안내입니다. ` +
+      `새로운 예상 도착/처리 일정${v.new_eta ? '(' + v.new_eta + ')' : ''}을 안내하고, 고객의 의견(대체편 희망 여부, 이의 제기, 추가 요청)을 여쭤보세요.`,
+    claim_followup: (v) => `[오늘 용건] 접수된 클레임 건에 대한 후속 안내입니다. 처리 현황을 안내하고, 고객이 추가로 전달하고 싶은 내용이나 이견이 있는지 확인하세요.`,
+  };
+  const scriptText = (SCRIPTS[SCRIPT_TYPE] ? SCRIPTS[SCRIPT_TYPE](VARS) : '[오늘 용건] 일반 화물 처리 안내입니다.');
+
+  document.getElementById('caseMeta').textContent = CASE_ID ? ('케이스 ' + CASE_ID + (SCRIPT_TYPE ? ' · ' + SCRIPT_TYPE : '')) : '(데모 — 케이스 없이 자유 대화)';
+
+  const PERSONA =
+    '[언어] 모든 대화는 한국어 정중한 격식체로만 말하세요. ' +
+    '당신은 "서울항공화물" CS 상담원입니다. 항공화물(포워딩) 업무를 다루며, AWB(항공화물운송장)·결항·ETA(도착예정시각)·클레임 같은 용어를 정확히 씁니다. ' +
+    '목소리는 침착하고 신뢰감 있게, 신속·정확을 우선합니다. 불필요한 잡담은 피하고 목적 지향적으로 진행하세요: (1) 용건을 명확히 전달 → (2) 고객의 확인/이견/요청을 경청 → (3) 필요시 간단히 재확인 → (4) 정중히 마무리. ' +
+    '고객이 클레임이나 불만을 제기하면 절대 임의로 보상·환불을 약속하지 말고, "정확히 확인 후 담당자가 다시 연락드리겠습니다"라고 안내하세요. ' +
+    '응답은 1~2문장으로 짧고 명확하게 하세요. 고객이 통화를 마치고 싶어하면(그만/끊을게/이만 등) 길게 붙잡지 말고 정중히 마무리하세요.' +
+    '\n\n' + scriptText;
+
+  const $ = (id) => document.getElementById(id);
+  const els = { start: $('start'), stop: $('stop'), status: $('status'), log: $('log'), audio: $('audio') };
+  const setStatus = (s) => els.status.textContent = s;
+  function add(cls, text) { const d = document.createElement('div'); d.className = 'msg ' + cls; d.textContent = text; els.log.appendChild(d); d.scrollIntoView({ block: 'end' }); }
+
+  let pc = null, dc = null, micStream = null, aiBuf = '', turns = [], greeted = false, greetTimer = null;
+  let silenceTimer = null, noResp = 0, stopTimer = null, stopped = false, ending = false, endRequested = false;
+  const SILENCE_MS = 9000, MAX_NORESP = 4;
+  const END_PATTERNS = [/끊\s*(을게|을래|어요?)/, /그만\s*(할게|해요?)/, /이만(\s|$)/, /수고(했|하셨)/, /안녕히\s*(계세|가세)/, /\b(bye|goodbye|hang\s*up)\b/i];
+  const isEndIntent = (t) => END_PATTERNS.some((re) => re.test((t || '').trim()));
+
+  function sessionConfig() {
+    return { type: 'session.update', session: { type: 'realtime', instructions: PERSONA,
+      audio: { input: { transcription: { model: 'whisper-1', language: 'ko' }, turn_detection: { type: 'server_vad', threshold: 0.55, prefix_padding_ms: 200, silence_duration_ms: 500 } },
+                output: { voice: 'sage', speed: 1.05 } } } };
+  }
+  function clearSilence() { if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; } }
+  function armSilence() { clearSilence(); if (ending || stopped) return; silenceTimer = setTimeout(onSilence, SILENCE_MS); }
+  function scheduleStop(ms) { if (stopTimer) clearTimeout(stopTimer); stopTimer = setTimeout(() => stop(), ms); }
+  function sayOnce(instr) { try { dc.send(JSON.stringify({ type: 'response.create', response: { instructions: instr } })); } catch (e) {} }
+  function sendGreeting() { if (greeted) return; greeted = true; if (greetTimer) { clearTimeout(greetTimer); greetTimer = null; } try { dc.send(JSON.stringify({ type: 'response.create' })); } catch (e) {} }
+  function onSilence() {
+    if (ending || stopped) return; clearSilence(); noResp++;
+    if (noResp >= MAX_NORESP) { ending = true; setStatus('응답이 없어 상담을 마무리합니다...'); sayOnce('고객님이 계속 응답이 없습니다. "고객님, 통화가 어려우신 것 같아 이만 마치겠습니다. 감사합니다." 라고 정중하고 짧게 인사만 하고 마무리하세요.'); scheduleStop(9000); }
+    else { setStatus('고객 응답 대기 중...'); sayOnce('고객님이 잠시 응답이 없습니다. 정중하게 "고객님, 들리십니까?" 하고 짧게 한 번 더 확인하세요.'); }
+  }
+
+  async function start() {
+    els.start.disabled = true; turns = []; ending = false; endRequested = false; stopped = false; greeted = false; noResp = 0;
+    if (greetTimer) { clearTimeout(greetTimer); greetTimer = null; } clearSilence();
+    let token = '', tj = null;
+    const passcode = getPasscode();
+    try { setStatus('🔑 연결 준비 중...'); const tr = await fetch(TOKEN_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: passcode }) }); if (tr.ok) { tj = await tr.json(); token = (tj && tj.value) || ''; } }
+    catch (e) {}
+    if (!token) {
+      if (tj && tj.error === 'unauthorized') { try { localStorage.removeItem(PASSCODE_KEY); } catch (e) {} }
+      setStatus('⛔ ' + ((tj && tj.message) || '연결 토큰을 받지 못했습니다.')); els.start.disabled = false; return;
+    }
+    try { setStatus('🎤 마이크 권한을 허용해 주세요...'); micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+    catch (e) { setStatus('❌ 마이크 권한이 거부되었습니다.'); els.start.disabled = false; return; }
+    pc = new RTCPeerConnection();
+    pc.ontrack = (e) => els.audio.srcObject = e.streams[0];
+    micStream.getTracks().forEach((t) => pc.addTrack(t, micStream));
+    dc = pc.createDataChannel('oai-events');
+    dc.onopen = () => { setStatus('🟢 연결됐습니다 — 편하게 말씀하세요'); try { dc.send(JSON.stringify(sessionConfig())); } catch (e) {} greetTimer = setTimeout(sendGreeting, 2500); };
+    dc.onmessage = (e) => {
+      let ev; try { ev = JSON.parse(e.data); } catch (e2) { return; } const t = ev.type || '';
+      if (t === 'session.updated') { sendGreeting(); return; }
+      if (t.indexOf('input_audio_transcription') >= 0 && t.endsWith('.completed')) { if (ev.transcript) { const s = ev.transcript.trim(); clearSilence(); noResp = 0; add('me', '🗣️ ' + s); turns.push('고객: ' + s); if (isEndIntent(s)) endRequested = true; } }
+      else if (t.endsWith('audio_transcript.delta')) { aiBuf += (ev.delta || ''); clearSilence(); }
+      else if (t.endsWith('audio_transcript.done')) { const s = (ev.transcript || aiBuf).trim(); if (s) { add('ai', '✈️ ' + s); turns.push('상담원: ' + s); } aiBuf = '';
+        if (endRequested && !ending) { ending = true; setStatus('상담을 마무리하는 중입니다...'); scheduleStop(Math.max(2000, s.length * 120)); }
+        else if (ending) { scheduleStop(Math.max(1500, s.length * 110)); }
+        else armSilence(); }
+      else if (t === 'error') { const err = ev.error || ev; add('sys', '⚠️ ' + (err.message || JSON.stringify(err))); }
+    };
+    pc.onconnectionstatechange = () => { if (['failed', 'disconnected', 'closed'].includes(pc.connectionState) && !ending) setStatus('상담이 종료되었습니다 (' + pc.connectionState + ')'); };
+    try {
+      const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+      setStatus('연결 중입니다...');
+      const resp = await fetch(CALLS_URL + '?model=' + encodeURIComponent(MODEL), { method: 'POST', body: offer.sdp, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/sdp' } });
+      if (!resp.ok) { const b = await resp.text().catch(() => ''); setStatus('❌ 연결 실패 (' + resp.status + '): ' + b.slice(0, 300)); cleanup(); return; }
+      await pc.setRemoteDescription({ type: 'answer', sdp: await resp.text() });
+      els.stop.disabled = false;
+    } catch (err) { setStatus('❌ 오류: ' + (err && err.message ? err.message : err)); cleanup(); }
+  }
+  function cleanup() { clearSilence(); try { if (dc) dc.close(); } catch (e) {} try { if (pc) pc.close(); } catch (e) {} try { if (micStream) micStream.getTracks().forEach((t) => t.stop()); } catch (e) {} pc = dc = micStream = null; els.start.disabled = false; els.stop.disabled = true; }
+  function stop() { if (stopped) return; stopped = true; clearSilence(); if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; } setStatus('상담을 종료합니다...'); cleanup(); setStatus('■ 상담이 끝났습니다. 이용해 주셔서 감사합니다.'); }
+  els.start.onclick = start; els.stop.onclick = () => { ending = true; stop(); };
+</script>
+</body>
+</html>
