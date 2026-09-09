@@ -119,7 +119,7 @@
     '응답은 1~2문장으로 짧고 명확하게 하세요. 고객이 통화를 마치고 싶어하면(그만/끊을게/이만 등) 길게 붙잡지 말고 정중히 마무리하세요. ' +
     '[상담 시작 인사] 가장 먼저, 다른 어떤 말보다 먼저 이렇게 인사하세요: "안녕하세요, 서울항공화물입니다." 그런 다음 바로 이어서 아래 [오늘 용건]을 자연스럽게 전달하세요. 인사 없이 바로 용건이나 다른 이야기로 시작하지 마세요. ' +
     '[금지: 사실 창작] 아래 [오늘 용건]에 적히지 않은 항공편명·날짜·금액·사건 경위 등은 절대 지어내 말하지 마세요. 확실하지 않은 내용은 "확인 후 다시 안내드리겠습니다"라고 답하세요. ' +
-    '[배경소음] 주변 TV·라디오·뉴스 방송이나 다른 사람 말소리에는 절대 반응하지 마세요. 고객이 당신에게 또렷이 말을 걸 때만 답하고, 입력이 불분명하거나 뉴스 앵커 멘트·광고처럼 화물 상담과 무관해 보이면 절대 답하지 말고 조용히 기다리세요. 당신(AI) 자신의 말소리에도 반응하지 마세요.' +
+    '[배경소음] 주변 TV·라디오·뉴스 방송이나 다른 사람 말소리에는 절대 반응하지 마세요. 마이크에 화자 음역 필터가 걸려 있어 대부분의 TV·타인 목소리는 이미 걸러지지만 완전하진 않습니다. 고객이 당신에게 또렷이 말을 걸 때만 답하세요. 입력이 "여보세요"류 인사말이나 "네/아니요/음..." 같은 짧은 맞장구가 아니면서, 뉴스 앵커 멘트·광고·드라마 대사처럼 화물·배송·항공편 상담과 전혀 무관해 보이면, 그 내용에 절대 답하지 말고 "죄송합니다, 잘 안 들렸어요. 다시 한 번 말씀해 주시겠어요?"라고만 짧게 되물으세요. 무관한 소리를 진짜 고객 발언으로 착각해 엉뚱하게 대답하지 마세요. 당신(AI) 자신의 말소리에도 반응하지 마세요.' +
     '\n\n[오늘 용건] ' + scriptText;
 
   const $ = (id) => document.getElementById(id);
@@ -133,9 +133,62 @@
   const END_PATTERNS = [/끊\s*(을게|을래|어요?)/, /그만\s*(할게|해요?)/, /이만(\s|$)/, /수고(했|하셨)/, /안녕히\s*(계세|가세)/, /\b(bye|goodbye|hang\s*up)\b/i];
   const isEndIntent = (t) => END_PATTERNS.some((re) => re.test((t || '').trim()));
   // ponytail: Whisper가 무음/배경소음 구간에서 지어내는 한국어 환각 패턴(뉴스 앵커 멘트 등) — 알려진 고정 문구만 걸러내는 화면표시용 필터.
-  // 모델이 실제로 그 소리에 응답할지는 PERSONA의 [배경소음] 지시에 달려있음(care.html과 동일 방식) — 계속 재발하면 VAD threshold를 올리거나 care.html의 피치 기반 화자 필터 이식 검토.
   const HALLUCINATION_PATTERNS = [/mbc|sbs|kbs\d?|jtbc|ytn|채널\s*a|연합뉴스/i, /뉴스\s*(입니다|였습니다)/, /기자\s*(입니다|였습니다)/, /앵커\s*(입니다|였습니다)/, /구독과\s*좋아요/, /시청해\s*주셔서\s*감사/];
   const isHallucination = (t) => HALLUCINATION_PATTERNS.some((re) => re.test((t || '').trim()));
+
+  // ===== 화자 음성 학습 + 필터 (피치 기반 게이트, care.html에서 이식) =====
+  // 통화 시작 직후 상대방(화주 담당자) 목소리의 음높이(F0) 범위를 학습→기억하고, OpenAI로 보내기 전
+  // GainNode로 그 음역과 다른 TV·타인 목소리를 음소거(게이트)해 AI가 반응하지 않게 한다.
+  // care.html과 달리 매 통화 상대가 다르므로 localStorage에 저장하지 않고 세션마다 새로 학습한다.
+  // ponytail: 진짜 화자 생체인식이 아니라 피치 기반 근사 — 음역이 비슷한 목소리는 구분 못 할 수 있음.
+  let audioCtx = null, vfSource = null, vfAnalyser = null, vfGate = null, vfDest = null, vfTimer = null, vfBuf = null;
+  let voiceLo = 0, voiceHi = 0, learnSamples = [], learnUntil = 0, learnStart = 0, gateOpen = true;
+  function estimatePitch(buf, sr) {
+    let rms = 0; for (let i = 0; i < buf.length; i++) { rms += buf[i] * buf[i]; } rms = Math.sqrt(rms / buf.length);
+    if (rms < 0.01) return 0;
+    const minP = Math.floor(sr / 400), maxP = Math.floor(sr / 70); let best = 0, bestOff = -1;
+    for (let off = minP; off <= maxP; off++) { let s = 0; for (let i = 0; i < buf.length - off; i += 2) { s += buf[i] * buf[i + off]; } if (s > best) { best = s; bestOff = off; } }
+    if (bestOff <= 0) return 0; const f0 = sr / bestOff; return (f0 >= 70 && f0 <= 400) ? f0 : 0;
+  }
+  function lockProfile(force) {
+    if (learnSamples.length < 6 && !force) return false;
+    const s = learnSamples.slice().sort((a, b) => a - b);
+    const med = s[Math.floor(s.length / 2)] || 0;
+    let core = s.filter((x) => med && x >= med * 0.65 && x <= med * 1.35);
+    if (core.length < 5) { if (!force) return false; core = s; }
+    voiceLo = core[Math.floor(core.length * 0.1)]; voiceHi = core[core.length - 1 - Math.floor(core.length * 0.1)];
+    if (!voiceLo || !voiceHi) return false;
+    if (voiceHi - voiceLo < 40) { const m = (voiceLo + voiceHi) / 2; voiceLo = m - 25; voiceHi = m + 25; }
+    add('sys', '🎙️ 상대방 목소리를 학습했어요. 이제 TV·주변 소리는 걸러냅니다.');
+    return true;
+  }
+  function startVoiceFilter() {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      try { audioCtx.resume(); } catch (e) {}
+      vfSource = audioCtx.createMediaStreamSource(micStream);
+      vfAnalyser = audioCtx.createAnalyser(); vfAnalyser.fftSize = 2048; vfBuf = new Float32Array(vfAnalyser.fftSize);
+      vfGate = audioCtx.createGain(); vfGate.gain.value = 1;
+      vfDest = audioCtx.createMediaStreamDestination();
+      vfSource.connect(vfAnalyser);
+      vfSource.connect(vfGate); vfGate.connect(vfDest);
+      voiceLo = 0; voiceHi = 0; learnSamples = []; gateOpen = true; learnStart = Date.now(); learnUntil = Date.now() + 2500;
+      vfTimer = setInterval(() => {
+        if (!audioCtx) return;
+        vfAnalyser.getFloatTimeDomainData(vfBuf);
+        const f0 = estimatePitch(vfBuf, audioCtx.sampleRate);
+        let pass = true;
+        if (f0 > 0) {
+          if (!voiceLo) { learnSamples.push(f0); if (Date.now() > learnUntil && learnSamples.length >= 8) { if (!lockProfile(Date.now() - learnStart > 8000)) learnUntil = Date.now() + 1000; } }
+          else { const tol = Math.max(25, (voiceHi - voiceLo) * 0.35); pass = (f0 >= voiceLo - tol && f0 <= voiceHi + tol); }
+        } else { pass = gateOpen; }
+        gateOpen = pass;
+        try { vfGate.gain.setTargetAtTime(pass ? 1 : 0, audioCtx.currentTime, 0.04); } catch (e) { vfGate.gain.value = pass ? 1 : 0; }
+      }, 90);
+      return vfDest.stream.getAudioTracks()[0];
+    } catch (e) { return null; }
+  }
+  function stopVoiceFilter() { if (vfTimer) { clearInterval(vfTimer); vfTimer = null; } try { if (audioCtx) audioCtx.close(); } catch (e) {} audioCtx = vfSource = vfAnalyser = vfGate = vfDest = null; }
 
   function sessionConfig() {
     // 돌봄 서비스(care.html) 기본값과 동일하게 맞춤: voice=shimmer, speed=1.15, 소음환경 'normal' 프리셋.
@@ -183,7 +236,9 @@
     catch (e) { setStatus('❌ 마이크 권한이 거부되었습니다.'); els.start.disabled = false; return; }
     pc = new RTCPeerConnection();
     pc.ontrack = (e) => els.audio.srcObject = e.streams[0];
-    micStream.getTracks().forEach((t) => pc.addTrack(t, micStream));
+    const gatedTrack = startVoiceFilter();
+    if (gatedTrack && vfDest) { pc.addTrack(gatedTrack, vfDest.stream); }
+    else { micStream.getTracks().forEach((t) => pc.addTrack(t, micStream)); }
     dc = pc.createDataChannel('oai-events');
     dc.onopen = () => { setStatus('🟢 연결됐습니다 — 편하게 말씀하세요'); try { dc.send(JSON.stringify(sessionConfig())); } catch (e) {} greetTimer = setTimeout(sendGreeting, 2500); };
     dc.onmessage = (e) => {
@@ -213,7 +268,7 @@
       els.stop.disabled = false;
     } catch (err) { setStatus('❌ 오류: ' + (err && err.message ? err.message : err)); cleanup(); }
   }
-  function cleanup() { clearSilence(); try { if (dc) dc.close(); } catch (e) {} try { if (pc) pc.close(); } catch (e) {} try { if (micStream) micStream.getTracks().forEach((t) => t.stop()); } catch (e) {} pc = dc = micStream = null; els.start.disabled = false; els.stop.disabled = true; }
+  function cleanup() { clearSilence(); stopVoiceFilter(); try { if (dc) dc.close(); } catch (e) {} try { if (pc) pc.close(); } catch (e) {} try { if (micStream) micStream.getTracks().forEach((t) => t.stop()); } catch (e) {} pc = dc = micStream = null; els.start.disabled = false; els.stop.disabled = true; }
   function stop() { if (stopped) return; stopped = true; clearSilence(); if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; } setStatus('상담을 종료합니다...'); cleanup(); reportCallCompleted(new Date().toISOString()); setStatus('■ 상담이 끝났습니다. 이용해 주셔서 감사합니다.'); }
   els.start.onclick = start; els.stop.onclick = () => { ending = true; stop(); };
 </script>
