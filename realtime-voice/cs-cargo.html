@@ -102,12 +102,15 @@
   try { VARS = JSON.parse(qs.get('vars') || '{}'); } catch (e) {}
 
   const SCRIPTS = {
-    flight_cancel_notice: (v) => `${v.flight_no ? v.flight_no + '편' : '해당 항공편'} 결항으로 인한 안내입니다. ` +
+    flight_cancel_notice: (v) => `${v.flight_no ? v.flight_no + '편' : '해당 항공편'}${v.destination ? '(목적지 ' + v.destination + ')' : ''} 결항으로 인한 안내입니다.${v.scheduled_departure_at ? ' 원래 출발 예정일은 ' + v.scheduled_departure_at + '였습니다.' : ''} ` +
       `새로운 예상 도착/처리 일정${v.new_eta ? '(' + v.new_eta + ')' : ''}을 안내하고, 고객의 의견(대체편 희망 여부, 이의 제기, 추가 요청)을 여쭤보세요.`,
     claim_followup: (v) => `접수된 클레임 건에 대한 후속 안내입니다. 처리 현황을 안내하고, 고객이 추가로 전달하고 싶은 내용이나 이견이 있는지 확인하세요.`,
   };
   const hasCase = !!SCRIPTS[SCRIPT_TYPE];
-  const scriptText = hasCase ? SCRIPTS[SCRIPT_TYPE](VARS) : '이번 통화는 특정 케이스 없이 진행하는 데모 통화입니다. 결항·클레임 등 실제 사건 내용을 지어내지 말고, 무엇을 도와드릴지 여쭤보는 것으로 시작하세요.';
+  let scriptText = hasCase ? SCRIPTS[SCRIPT_TYPE](VARS) : '이번 통화는 특정 케이스 없이 진행하는 데모 통화입니다. 결항·클레임 등 실제 사건 내용을 지어내지 말고, 무엇을 도와드릴지 여쭤보는 것으로 시작하세요.';
+  // scargo-ax가 보낸 실제 사건 요약(incident.summary)을 최우선으로 앞세운다 — script_type이 계약 enum과
+  // 안 맞아 엉뚱한 템플릿(SCRIPTS)이 골라지더라도, 실제 상황 설명만큼은 항상 전달되게 하는 안전장치.
+  if (VARS.summary) scriptText = VARS.summary + '. ' + scriptText;
 
   document.getElementById('caseMeta').textContent = CASE_ID ? ('케이스 ' + CASE_ID + (SCRIPT_TYPE ? ' · ' + SCRIPT_TYPE : '')) : '(데모 — 케이스 없이 자유 대화)';
 
