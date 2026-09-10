@@ -130,7 +130,7 @@
 
   let pc = null, dc = null, micStream = null, aiBuf = '', turns = [], greeted = false, greetTimer = null, sessionStartIso = '';
   let silenceTimer = null, noResp = 0, stopTimer = null, stopped = false, ending = false, endRequested = false;
-  const SILENCE_MS = 9000, MAX_NORESP = 4;
+  const SILENCE_MS = 16000, MAX_NORESP = 4; // ponytail: 9초는 너무 빨리 "들리십니까?"가 나와 불편하다는 피드백(2026-09-10) 반영해 상향
   const END_PATTERNS = [/끊\s*(을게|을래|어요?)/, /그만\s*(할게|해요?)/, /이만(\s|$)/, /수고(했|하셨)/, /안녕히\s*(계세|가세)/, /\b(bye|goodbye|hang\s*up)\b/i];
   const isEndIntent = (t) => END_PATTERNS.some((re) => re.test((t || '').trim()));
   // ponytail: Whisper가 무음/배경소음 구간에서 지어내는 한국어 환각 패턴(뉴스 앵커 멘트 등) — 알려진 고정 문구만 걸러내는 화면표시용 필터.
